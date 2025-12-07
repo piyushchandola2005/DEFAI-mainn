@@ -16,6 +16,7 @@ import {
   ShieldCheck
 } from "lucide-react";
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { toast } from "sonner";
 
 // Types
@@ -35,6 +36,7 @@ type PortfolioData = {
 };
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { address, isConnected } = useAccount();
   const [data, setData] = useState<PortfolioData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -181,7 +183,17 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-4">
                     <div className="relative w-10 h-10 rounded-full overflow-hidden border border-zinc-700 bg-zinc-800">
                       {token.logo ? (
-                        <img src={token.logo} alt={token.symbol} className="object-cover w-full h-full" />
+                        <Image 
+                          src={token.logo || '/placeholder-token.png'}
+                          alt={token.symbol}
+                          width={40}
+                          height={40}
+                          className="object-cover w-full h-full"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = '/placeholder-token.png';
+                          }}
+                        />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-xs font-bold text-zinc-500">
                           {token.symbol[0]}
@@ -223,10 +235,16 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-3">
             {data?.nfts.map((nft, i) => (
               <div key={i} className="group relative aspect-square rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900">
-                <img 
-                  src={nft.image} 
-                  alt={nft.title} 
-                  className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110" 
+                <Image 
+                  src={nft.image || '/placeholder-nft.png'}
+                  alt={nft.title}
+                  width={200}
+                  height={200}
+                  className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = '/placeholder-nft.png';
+                  }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
                   <p className="text-xs font-bold text-white truncate">{nft.title}</p>

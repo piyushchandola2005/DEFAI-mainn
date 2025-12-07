@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -32,11 +32,35 @@ export default function ChatInterface() {
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const loadChatsCallback = useCallback(async () => {
+    if (!address) return;
+    
+    try {
+      const { data: chats, error } = await supabase
+        .from('chats')
+        .select('*')
+        .eq('user_address', address.toLowerCase())
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      setChats(chats || []);
+      
+      // Set the first chat as active if available
+      if (chats && chats.length > 0 && !currentChatId) {
+        setCurrentChatId(chats[0].id);
+        loadMessages(chats[0].id);
+      }
+    } catch (error) {
+      console.error('Error loading chats:', error);
+    }
+  }, [address, currentChatId, loadMessages]);
+
   useEffect(() => {
     if (isConnected && address) {
-      loadChats();
+      loadChatsCallback();
     }
-  }, [isConnected, address]);
+  }, [isConnected, address, loadChatsCallback]);
 
   useEffect(() => {
     scrollToBottom();
