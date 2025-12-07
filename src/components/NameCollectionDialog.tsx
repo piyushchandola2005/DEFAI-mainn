@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -54,7 +55,9 @@ export function NameCollectionDialog({ isOpen, walletAddress, onComplete }: Name
     <Dialog open={isOpen} onOpenChange={(open) => !open && onComplete()}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Welcome to Our Platform!</DialogTitle>
+          <VisuallyHidden>
+            <DialogTitle>Welcome to Our Platform!</DialogTitle>
+          </VisuallyHidden>
           <DialogDescription>
             Please enter your name to personalize your experience.
           </DialogDescription>

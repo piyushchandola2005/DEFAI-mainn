@@ -40,10 +40,35 @@ export async function registerOrUpdateUser(walletAddress: string): Promise<UserR
       
       return { user: updatedUser, isNewUser: false };
     } else {
-      // Create new user using the secure function
-      const { data: newUser, error: insertError } = await supabase
-        .rpc('handle_new_user', { wallet_address: normalizedAddress })
-        .single();
+      // Try using the secure function first
+      let newUser, insertError;
+      
+      try {
+        const result = await supabase
+          .rpc('handle_new_user', { wallet_address: normalizedAddress })
+          .single();
+        newUser = result.data;
+        insertError = result.error;
+      } catch (e) {
+        insertError = e;
+      }
+      
+      // Fallback to direct insert if RPC fails
+      if (insertError) {
+        console.log('RPC function not available, using direct insert:', insertError);
+        const defaultName = `User ${normalizedAddress.slice(0, 6)}...${normalizedAddress.slice(-4)}`;
+        const result = await supabase
+          .from('users')
+          .insert({
+            wallet_address: normalizedAddress,
+            display_name: defaultName,
+            last_connected_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+        newUser = result.data;
+        insertError = result.error;
+      }
         
       if (insertError) {
         console.error('Error creating user:', insertError);
