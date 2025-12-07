@@ -65,10 +65,18 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Format token value with decimals
-  const formatTokenValue = (value: string, decimals: string = '18') => {
+  const formatTokenValue = (value?: string | number, decimals: string | number = '18') => {
     try {
-      const decimalNumber = parseInt(decimals);
-      const formatted = (parseInt(value) / Math.pow(10, decimalNumber)).toFixed(4);
+      if (!value) return '0';
+      const strValue = value.toString();
+      if (!strValue) return '0';
+      
+      const decimalNumber = parseInt(decimals.toString());
+      const parsedValue = parseFloat(strValue);
+      
+      if (isNaN(parsedValue)) return '0';
+      
+      const formatted = (parsedValue / Math.pow(10, decimalNumber)).toFixed(4);
       return parseFloat(formatted).toString();
     } catch (error) {
       console.error('Error formatting token value:', error);
@@ -118,18 +126,24 @@ export default function DashboardPage() {
         .eq('user_address', address.toLowerCase())
         .single();
 
-      // Calculate total AVAX balance from transactions
+          // Calculate total AVAX balance from transactions
       let totalAvax = 0;
-      transactions?.forEach((tx: Transaction) => {
-        if (tx.isError === '0') { // Only count successful transactions
-          totalAvax += parseFloat(tx.value) / 1e18; // Convert wei to AVAX
-        }
-      });
+      if (Array.isArray(transactions)) {
+        transactions.forEach((tx: Transaction) => {
+          if (tx?.isError === '0' && tx?.value) { // Only count successful transactions with valid value
+            totalAvax += parseFloat(tx.value) / 1e18; // Convert wei to AVAX
+          }
+        });
+      }
 
+      // Ensure we're working with arrays and handle potential undefined/null cases
+      const safeTransactions = Array.isArray(transactions) ? transactions : [];
+      const safeTokenBalances = Array.isArray(tokenBalances) ? tokenBalances : [];
+      
       setData({
         balanceAvax: totalAvax.toFixed(4),
-        transactions: transactions || [],
-        tokens: tokenBalances || [],
+        transactions: safeTransactions,
+        tokens: safeTokenBalances,
         aiUsage: usageData || {
           totalCalls: 0,
           lastUsed: null,
