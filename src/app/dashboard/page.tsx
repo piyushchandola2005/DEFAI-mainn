@@ -221,7 +221,7 @@ export default function DashboardPage() {
             {loading ? "..." : `${data?.balanceAvax || "0.00"} AVAX`}
           </div>
           <div className="text-sm text-zinc-400">
-            ≈ ${(parseFloat(data?.balanceAvax || '0') * 15.42).toFixed(2)} USD
+            Testnet funds · no USD value
           </div>
         </GlowCard>
 
@@ -287,9 +287,9 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-mono font-medium">{data?.balanceAvax || '0.00'}</div>
+                  <div className="font-mono font-medium">{data?.balanceAvax || '0.00'} AVAX</div>
                   <div className="text-xs text-zinc-500">
-                    ≈ ${(parseFloat(data?.balanceAvax || '0') * 15.42).toFixed(2)} USD
+                    Testnet funds · no USD value
                   </div>
                 </div>
               </div>

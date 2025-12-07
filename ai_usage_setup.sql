@@ -1,6 +1,6 @@
--- Create the ai_usage table if it doesn't exist
 create table if not exists public.ai_usage (
-  user_address text primary key,
+  id uuid default gen_random_uuid() primary key,
+  user_address text not null unique,
   total_calls integer default 0,
   last_used timestamp with time zone,
   favorite_tools text[] default '{}'::text[],
@@ -11,11 +11,22 @@ create table if not exists public.ai_usage (
 -- Enable Row Level Security
 alter table public.ai_usage enable row level security;
 
--- Create a policy to allow users to see only their own usage
-create policy "Users can view their own AI usage" 
-on public.ai_usage 
-for select 
+-- Policies to restrict access per wallet
+create policy if not exists "ai_usage_select"
+on public.ai_usage
+for select
 using (auth.uid()::text = user_address);
+
+create policy if not exists "ai_usage_insert"
+on public.ai_usage
+for insert
+with check (auth.uid()::text = user_address);
+
+create policy if not exists "ai_usage_update"
+on public.ai_usage
+for update
+using (auth.uid()::text = user_address)
+with check (auth.uid()::text = user_address);
 
 -- Create or replace the increment function
 create or replace function increment_ai_usage(user_addr text)

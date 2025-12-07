@@ -11,6 +11,7 @@ import { MessageCircle, X, Send, Bot, User } from 'lucide-react';
 
 interface Message {
   id: string;
+  chat_id: string;
   role: 'user' | 'assistant';
   content: string;
   created_at: string;
@@ -31,12 +32,15 @@ export default function ChatInterface() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const normalizedAddress = address?.toLowerCase();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const loadMessages = async (chatId: string) => {
+  const loadMessages = useCallback(async (chatId: string) => {
+    if (!chatId) return;
+
     const { data, error } = await supabase
       .from('messages')
       .select('*')
@@ -48,71 +52,55 @@ export default function ChatInterface() {
     } else {
       setMessages(data || []);
     }
-  };
+  }, []);
 
-  const loadChats = async () => {
-    if (!address) return;
-    
-    const { data, error } = await supabase
-      .from('chats')
-      .select('*')
-      .eq('wallet_address', address)
-      .order('created_at', { ascending: false });
+  const loadChats = useCallback(async () => {
+    if (!normalizedAddress) return;
 
-    if (error) {
-      console.error('Error loading chats:', error);
-    } else {
-      setChats(data || []);
-    }
-  };
-
-  const loadChatsCallback = useCallback(async () => {
-    if (!address) return;
-    
     try {
-      const { data: chats, error } = await supabase
+      const { data, error } = await supabase
         .from('chats')
         .select('*')
-        .eq('user_address', address.toLowerCase())
+        .eq('wallet_address', normalizedAddress)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      
-      setChats(chats || []);
-      
-      // Set the first chat as active if available
-      if (chats && chats.length > 0 && !currentChatId) {
-        setCurrentChatId(chats[0].id);
-        loadMessages(chats[0].id);
+
+      setChats(data || []);
+
+      if ((!currentChatId || !data?.some(chat => chat.id === currentChatId)) && data && data.length > 0) {
+        const newActiveChatId = data[0].id;
+        setCurrentChatId(newActiveChatId);
+        await loadMessages(newActiveChatId);
       }
     } catch (error) {
       console.error('Error loading chats:', error);
     }
-  }, [address, currentChatId, loadMessages]);
+  }, [normalizedAddress, currentChatId, loadMessages]);
 
   useEffect(() => {
-    if (isConnected && address) {
-      loadChatsCallback();
+    if (isConnected && normalizedAddress) {
+      loadChats();
     }
-  }, [isConnected, address, loadChatsCallback]);
+  }, [isConnected, normalizedAddress, loadChats]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
   const createNewChat = async () => {
-    if (!address) return;
+    if (!normalizedAddress) return;
 
     const { data, error } = await supabase
       .from('chats')
       .insert({
-        wallet_address: address,
+        wallet_address: normalizedAddress,
         title: 'New Chat',
       })
       .select()
       .single();
 
-    if (error) {
+    if (error || !data) {
       console.error('Error creating chat:', error);
     } else {
       setCurrentChatId(data.id);
@@ -122,69 +110,114 @@ export default function ChatInterface() {
   };
 
   const sendMessage = async () => {
-    if (!input.trim() || !currentChatId || !address) return;
-
-    const userMessage = {
-      chat_id: currentChatId,
-      role: 'user' as const,
-      content: input,
-    };
+    const trimmedInput = input.trim();
+    if (!trimmedInput || !normalizedAddress) return;
 
     setIsLoading(true);
     setInput('');
 
-    // Track AI usage
     try {
-      await supabase
+      let activeChatId = currentChatId;
+
+      if (!activeChatId) {
+        const { data: newChat, error: newChatError } = await supabase
+          .from('chats')
+          .insert({
+            wallet_address: normalizedAddress,
+            title: trimmedInput.slice(0, 30) || 'New Chat',
+          })
+          .select()
+          .single();
+
+        if (newChatError || !newChat) {
+          console.error('Error creating chat before sending message:', newChatError);
+          setIsLoading(false);
+          return;
+        }
+
+        activeChatId = newChat.id;
+        setCurrentChatId(activeChatId);
+        setMessages([]);
+        await loadChats();
+      }
+
+      const timestamp = new Date().toISOString();
+
+      // Track AI usage
+      const { error: usageError } = await supabase
         .from('ai_usage')
         .upsert(
           { 
-            user_address: address.toLowerCase(),
-            last_used: new Date().toISOString()
+            user_address: normalizedAddress,
+            last_used: timestamp
           },
           { onConflict: 'user_address' }
         );
-      
-      // Increment total calls
-      await supabase.rpc('increment_ai_usage', { user_addr: address.toLowerCase() });
-    } catch (error) {
-      console.error('Error tracking AI usage:', error);
-    }
 
-    // Save user message
-    const { error: userError } = await supabase
-      .from('messages')
-      .insert(userMessage);
-
-    if (userError) {
-      console.error('Error saving user message:', userError);
-      setIsLoading(false);
-      return;
-    }
-
-    // Update local messages
-    setMessages(prev => [...prev, { ...userMessage, id: Date.now().toString(), created_at: new Date().toISOString() }]);
-
-    // Simulate AI response (replace with actual AI call)
-    setTimeout(async () => {
-      const aiResponse = {
-        chat_id: currentChatId,
-        role: 'assistant' as const,
-        content: `I understand you said: "${input}". This is a simulated response. In production, this would connect to your AI agent.`,
-      };
-
-      const { error: aiError } = await supabase
-        .from('messages')
-        .insert(aiResponse);
-
-      if (aiError) {
-        console.error('Error saving AI response:', aiError);
-      } else {
-        setMessages(prev => [...prev, { ...aiResponse, id: (Date.now() + 1).toString(), created_at: new Date().toISOString() }]);
+      if (usageError) {
+        console.error('Error upserting AI usage row:', usageError);
       }
 
+      const { error: rpcError } = await supabase.rpc('increment_ai_usage', { user_addr: normalizedAddress });
+      if (rpcError) {
+        console.error('Error incrementing AI usage via RPC:', rpcError);
+        const { data: usageRow } = await supabase
+          .from('ai_usage')
+          .select('total_calls')
+          .eq('user_address', normalizedAddress)
+          .single();
+
+        const fallbackTotal = (usageRow?.total_calls || 0) + 1;
+        await supabase
+          .from('ai_usage')
+          .update({ total_calls: fallbackTotal, last_used: timestamp })
+          .eq('user_address', normalizedAddress);
+      }
+
+      const { data: insertedMessage, error: userError } = await supabase
+        .from('messages')
+        .insert({
+          chat_id: activeChatId,
+          role: 'user',
+          content: trimmedInput,
+        })
+        .select('*')
+        .single();
+
+      if (userError || !insertedMessage) {
+        console.error('Error saving user message:', userError);
+        setIsLoading(false);
+        return;
+      }
+
+      setMessages(prev => [...prev, insertedMessage]);
+
+      // Simulate AI response (replace with actual AI call)
+      setTimeout(async () => {
+        const aiResponsePayload = {
+          chat_id: activeChatId,
+          role: 'assistant' as const,
+          content: `I understand you said: "${trimmedInput}". This is a simulated response. In production, this would connect to your AI agent.`,
+        };
+
+        const { data: savedResponse, error: aiError } = await supabase
+          .from('messages')
+          .insert(aiResponsePayload)
+          .select('*')
+          .single();
+
+        if (aiError || !savedResponse) {
+          console.error('Error saving AI response:', aiError);
+        } else {
+          setMessages(prev => [...prev, savedResponse]);
+        }
+
+        setIsLoading(false);
+      }, 1000);
+    } catch (error) {
+      console.error('Error sending message:', error);
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   if (!isConnected) {
