@@ -7,7 +7,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 	DialogDescription,
-	DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
@@ -132,9 +131,6 @@ export function ConfirmationDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
-			<DialogTrigger asChild>
-				<Button>Open confirmation</Button>
-			</DialogTrigger>
 			<DialogContent
 				forceMount
 				className="max-w-md p-6 focus-visible:ring-0 focus-visible:outline-none"
