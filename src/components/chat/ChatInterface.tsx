@@ -32,6 +32,40 @@ export default function ChatInterface() {
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const loadMessages = async (chatId: string) => {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('chat_id', chatId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error loading messages:', error);
+    } else {
+      setMessages(data || []);
+    }
+  };
+
+  const loadChats = async () => {
+    if (!address) return;
+    
+    const { data, error } = await supabase
+      .from('chats')
+      .select('*')
+      .eq('wallet_address', address)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error loading chats:', error);
+    } else {
+      setChats(data || []);
+    }
+  };
+
   const loadChatsCallback = useCallback(async () => {
     if (!address) return;
     
@@ -66,40 +100,6 @@ export default function ChatInterface() {
     scrollToBottom();
   }, [messages]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const loadChats = async () => {
-    if (!address) return;
-    
-    const { data, error } = await supabase
-      .from('chats')
-      .select('*')
-      .eq('wallet_address', address)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error loading chats:', error);
-    } else {
-      setChats(data || []);
-    }
-  };
-
-  const loadMessages = async (chatId: string) => {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('chat_id', chatId)
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      console.error('Error loading messages:', error);
-    } else {
-      setMessages(data || []);
-    }
-  };
-
   const createNewChat = async () => {
     if (!address) return;
 
@@ -132,6 +132,24 @@ export default function ChatInterface() {
 
     setIsLoading(true);
     setInput('');
+
+    // Track AI usage
+    try {
+      await supabase
+        .from('ai_usage')
+        .upsert(
+          { 
+            user_address: address.toLowerCase(),
+            last_used: new Date().toISOString()
+          },
+          { onConflict: 'user_address' }
+        );
+      
+      // Increment total calls
+      await supabase.rpc('increment_ai_usage', { user_addr: address.toLowerCase() });
+    } catch (error) {
+      console.error('Error tracking AI usage:', error);
+    }
 
     // Save user message
     const { error: userError } = await supabase

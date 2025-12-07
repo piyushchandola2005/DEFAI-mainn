@@ -126,22 +126,17 @@ export default function DashboardPage() {
         .eq('user_address', address.toLowerCase())
         .single();
 
-          // Calculate total AVAX balance from transactions
-      let totalAvax = 0;
-      if (Array.isArray(transactions)) {
-        transactions.forEach((tx: Transaction) => {
-          if (tx?.isError === '0' && tx?.value) { // Only count successful transactions with valid value
-            totalAvax += parseFloat(tx.value) / 1e18; // Convert wei to AVAX
-          }
-        });
-      }
+          // Get AVAX balance from token balances
+      const avaxBalance = Array.isArray(tokenBalances) 
+        ? tokenBalances.find(t => t.symbol === 'AVAX')?.balance || '0'
+        : '0';
 
       // Ensure we're working with arrays and handle potential undefined/null cases
       const safeTransactions = Array.isArray(transactions) ? transactions : [];
       const safeTokenBalances = Array.isArray(tokenBalances) ? tokenBalances : [];
       
       setData({
-        balanceAvax: totalAvax.toFixed(4),
+        balanceAvax: avaxBalance,
         transactions: safeTransactions,
         tokens: safeTokenBalances,
         aiUsage: usageData || {
