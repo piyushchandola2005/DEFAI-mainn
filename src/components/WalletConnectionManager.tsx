@@ -3,6 +3,7 @@
 import { useWalletConnection } from '@/hooks/useWalletConnection';
 
 export function WalletConnectionManager() {
-  useWalletConnection();
-  return null;
+  const { NameCollectionDialog } = useWalletConnection();
+  
+  return <NameCollectionDialog />;
 }

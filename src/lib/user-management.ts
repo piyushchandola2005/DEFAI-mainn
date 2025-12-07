@@ -1,6 +1,11 @@
 import { supabase } from "./supabase";
 
-export async function registerOrUpdateUser(walletAddress: string) {
+export interface UserRegistrationResult {
+  user: any;
+  isNewUser: boolean;
+}
+
+export async function registerOrUpdateUser(walletAddress: string): Promise<UserRegistrationResult | null> {
   const normalizedAddress = walletAddress.toLowerCase();
   
   try {
@@ -33,17 +38,11 @@ export async function registerOrUpdateUser(walletAddress: string) {
         return null;
       }
       
-      return updatedUser;
+      return { user: updatedUser, isNewUser: false };
     } else {
-      // Create new user
+      // Create new user using the secure function
       const { data: newUser, error: insertError } = await supabase
-        .from('users')
-        .insert({
-          wallet_address: normalizedAddress,
-          display_name: `User ${normalizedAddress.slice(0, 6)}...${normalizedAddress.slice(-4)}`,
-          last_connected_at: new Date().toISOString()
-        })
-        .select()
+        .rpc('handle_new_user', { wallet_address: normalizedAddress })
         .single();
         
       if (insertError) {
@@ -51,21 +50,7 @@ export async function registerOrUpdateUser(walletAddress: string) {
         return null;
       }
       
-      // Initialize ai_usage for new user
-      const { error: usageError } = await supabase
-        .from('ai_usage')
-        .insert({
-          user_id: newUser.id,
-          total_calls: 0,
-          last_used: new Date().toISOString(),
-          favorite_tools: []
-        });
-        
-      if (usageError) {
-        console.error('Error initializing ai_usage:', usageError);
-      }
-      
-      return newUser;
+      return { user: newUser, isNewUser: true };
     }
   } catch (error) {
     console.error('Error in registerOrUpdateUser:', error);

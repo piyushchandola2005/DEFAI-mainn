@@ -149,7 +149,15 @@ export default function DashboardPage() {
       setData({
         balanceAvax: avaxBalance,
         transactions: safeTransactions,
-        tokens: safeTokenBalances,
+        tokens: safeTokenBalances.map((token: any) => ({
+          symbol: token.symbol,
+          name: token.name,
+          balance: token.balance,
+          logo: token.logo,
+          address: token.contractAddress,
+          valueUsd: token.valueUsd,
+          tokenDecimal: token.decimals
+        })),
         aiUsage: usageData || {
           totalCalls: 0,
           lastUsed: null,

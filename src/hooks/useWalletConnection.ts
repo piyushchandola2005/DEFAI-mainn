@@ -2,34 +2,24 @@
 
 import { useEffect } from 'react';
 import { useAccount } from 'wagmi';
-import { toast } from 'sonner';
 import { registerOrUpdateUser } from '@/lib/user-management';
+import { useUserRegistration } from './useUserRegistration';
 
 export function useWalletConnection() {
-  const { address, isConnected, isConnecting } = useAccount();
+  const { address, isConnected } = useAccount();
+  const registration = useUserRegistration();
 
   useEffect(() => {
-    if (isConnected && address) {
-      // Register or update user when wallet connects
-      registerOrUpdateUser(address)
-        .then((user) => {
-          if (user) {
-            console.log('User registered/updated:', user);
-            toast.success('Wallet connected successfully!');
-          } else {
-            toast.error('Failed to register user');
-          }
-        })
-        .catch((error) => {
-          console.error('Error registering user:', error);
-          toast.error('Error connecting wallet');
-        });
+    if (address && isConnected) {
+      const registerUser = async () => {
+        const result = await registerOrUpdateUser(address);
+        if (result) {
+          registration.handleRegistrationComplete(result.user, result.isNewUser);
+        }
+      };
+      registerUser();
     }
-  }, [isConnected, address]);
+  }, [address, isConnected, registration.handleRegistrationComplete]);
 
-  return {
-    address,
-    isConnected,
-    isConnecting
-  };
+  return { NameCollectionDialog: registration.NameCollectionDialog };
 }
