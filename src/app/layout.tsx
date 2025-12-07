@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { Web3Provider } from "@/providers/web3-provider";
+import { WalletConnectionManager } from "@/components/WalletConnectionManager";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -34,6 +35,7 @@ export default function RootLayout({
 			<body className={`antialiased tracking-tight ${inter.className}`}>
 				<ThemeProvider attribute="class" defaultTheme="dark">
 					<Web3Provider>
+						<WalletConnectionManager />
 						{children}
 						<Toaster />
 					</Web3Provider>

@@ -119,12 +119,23 @@ export default function DashboardPage() {
       // Get token balances from Avalanche testnet
       const tokenBalances = await getTokenBalances(address);
       
-      // Get AI usage from database
-      const { data: usageData } = await supabase
-        .from('ai_usage')
+      // Get user from database
+      const { data: userData } = await supabase
+        .from('users')
         .select('*')
-        .eq('user_address', address.toLowerCase())
+        .eq('wallet_address', address.toLowerCase())
         .single();
+      
+      // Get AI usage from database using user_id
+      let usageData = null;
+      if (userData) {
+        const { data: aiUsageData } = await supabase
+          .from('ai_usage')
+          .select('*')
+          .eq('user_id', userData.id)
+          .single();
+        usageData = aiUsageData;
+      }
 
           // Get AVAX balance from token balances
       const avaxBalance = Array.isArray(tokenBalances) 

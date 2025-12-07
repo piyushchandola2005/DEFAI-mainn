@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import Image from "next/image";
+import { DashboardButton } from "../dashboard/DashboardButton";
 interface ChatTopbarProps {
 	isLoading: boolean;
 	chatId?: string;
@@ -125,6 +126,7 @@ export default function ChatTopbar({
 					}
 				</div>
 
+				<DashboardButton />
 				<ConnectButton label="Connect wallet" chainStatus="none" accountStatus="avatar" showBalance={false} />
 			</div>
 

@@ -3,21 +3,19 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Home, MessageCircle, BarChart3, Settings, TrendingUp } from 'lucide-react';
+import { Home, MessageCircle, Settings, TrendingUp } from 'lucide-react';
+import { useAccount } from 'wagmi';
+import { cn } from '@/lib/utils';
 
 export default function DashboardNav() {
   const pathname = usePathname();
+  const { address } = useAccount();
 
   const navItems = [
     {
       href: '/',
       label: 'Home',
       icon: <Home className="w-4 h-4" />
-    },
-    {
-      href: '/dashboard',
-      label: 'Portfolio',
-      icon: <TrendingUp className="w-4 h-4" />
     },
     {
       href: '/chat',
@@ -46,23 +44,37 @@ export default function DashboardNav() {
             </Link>
           </div>
           
-          <div className="flex items-center space-x-1">
-            {navItems.map((item) => (
-              <Link key={item.href} href={item.href}>
-                <Button
-                  variant={pathname === item.href ? "default" : "ghost"}
-                  size="sm"
-                  className={`flex items-center gap-2 transition-all duration-300 ${
-                    pathname === item.href
-                      ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg hover:shadow-xl'
-                      : 'hover:bg-red-100 text-gray-700'
-                  }`}
-                >
-                  {item.icon}
-                  <span className="hidden sm:inline">{item.label}</span>
-                </Button>
-              </Link>
-            ))}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center space-x-1">
+              {navItems.map((item) => (
+                <Link key={item.href} href={item.href}>
+                  <Button
+                    variant={pathname === item.href ? "default" : "ghost"}
+                    size="sm"
+                    className={cn(
+                      "flex items-center gap-2 transition-all duration-300",
+                      pathname === item.href
+                        ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg hover:shadow-xl'
+                        : 'hover:bg-red-100 text-gray-700'
+                    )}
+                  >
+                    {item.icon}
+                    <span className="hidden sm:inline">{item.label}</span>
+                  </Button>
+                </Link>
+              ))}
+            </div>
+            
+            {address && (
+              <div className="flex items-center gap-2 ml-2">
+                <div className="flex items-center gap-2 bg-white/80 px-3 py-1 rounded-full border border-red-100 shadow-sm">
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-sm font-medium text-gray-700">
+                    {`${address.slice(0, 6)}...${address.slice(-4)}`}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

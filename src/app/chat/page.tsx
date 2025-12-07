@@ -5,6 +5,7 @@ import DashboardNav from '@/components/dashboard/DashboardNav';
 import ChatInterface from '@/components/chat/ChatInterface';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MessageCircle, Wallet } from 'lucide-react';
+import { DashboardButton } from '@/components/dashboard/DashboardButton';
 
 export default function ChatPage() {
   const { isConnected } = useAccount();
