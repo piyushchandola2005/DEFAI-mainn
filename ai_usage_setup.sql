@@ -11,18 +11,17 @@ create table if not exists public.ai_usage (
 -- Enable Row Level Security
 alter table public.ai_usage enable row level security;
 
--- Policies to restrict access per wallet
-create policy if not exists "ai_usage_select"
+create policy "ai_usage_select"
 on public.ai_usage
 for select
 using (auth.uid()::text = user_address);
 
-create policy if not exists "ai_usage_insert"
+create policy "ai_usage_insert"
 on public.ai_usage
 for insert
 with check (auth.uid()::text = user_address);
 
-create policy if not exists "ai_usage_update"
+create policy "ai_usage_update"
 on public.ai_usage
 for update
 using (auth.uid()::text = user_address)
