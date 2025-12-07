@@ -16,7 +16,8 @@ import {
   ShieldCheck,
   Clock,
   ArrowDownLeft,
-  ArrowUpDown
+  ArrowUpDown,
+  XCircle
 } from "lucide-react";
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -119,7 +120,7 @@ export default function DashboardPage() {
 
       // Calculate total AVAX balance from transactions
       let totalAvax = 0;
-      transactions?.forEach(tx => {
+      transactions?.forEach((tx: Transaction) => {
         if (tx.isError === '0') { // Only count successful transactions
           totalAvax += parseFloat(tx.value) / 1e18; // Convert wei to AVAX
         }
