@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import { supabase } from "@/lib/supabase";
-import { getPortfolioData } from "@/lib/portfolio";
+import { getTransactionHistory, getTokenBalances } from "@/lib/avalanche";
 import { GlowCard } from "@/components/ui/glow-card";
 import { 
   TrendingUp, 
@@ -13,7 +13,10 @@ import {
   Activity, 
   PieChart,
   RefreshCw,
-  ShieldCheck
+  ShieldCheck,
+  Clock,
+  ArrowDownLeft,
+  ArrowUpDown
 } from "lucide-react";
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -27,12 +30,30 @@ type Token = {
   logo?: string;
   address: string;
   valueUsd?: number;
+  tokenDecimal?: string;
+};
+
+type Transaction = {
+  hash: string;
+  from: string;
+  to: string;
+  value: string;
+  timeStamp: string;
+  isError: string;
+  gasUsed: string;
+  gasPrice: string;
+  tokenSymbol?: string;
 };
 
 type PortfolioData = {
-  balanceEth: string;
+  balanceAvax: string;
+  transactions: Transaction[];
   tokens: Token[];
-  nfts: any[];
+  aiUsage: {
+    totalCalls: number;
+    lastUsed: string | null;
+    favoriteTools: string[];
+  };
 };
 
 export default function DashboardPage() {
@@ -40,36 +61,102 @@ export default function DashboardPage() {
   const { address, isConnected } = useAccount();
   const [data, setData] = useState<PortfolioData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // --- Data Fetching Logic ---
-  useEffect(() => {
-    async function initUserAndFetchData() {
-      if (!address) return;
-      setLoading(true);
-      try {
-        const freshData = await getPortfolioData(address);
-        if (freshData) {
-          setData(freshData);
-          await supabase.from('users').upsert({ 
-            wallet_address: address, 
-            portfolio_data: freshData,
-            last_updated: new Date().toISOString()
-          });
-        }
-      } catch (error) {
-        console.error("Dashboard Error:", error);
-        const { data: dbData } = await supabase
-          .from('users')
-          .select('portfolio_data')
-          .eq('wallet_address', address)
-          .single();
-        if (dbData?.portfolio_data) setData(dbData.portfolio_data as PortfolioData);
-      } finally {
-        setLoading(false);
-      }
+  // Format token value with decimals
+  const formatTokenValue = (value: string, decimals: string = '18') => {
+    try {
+      const decimalNumber = parseInt(decimals);
+      const formatted = (parseInt(value) / Math.pow(10, decimalNumber)).toFixed(4);
+      return parseFloat(formatted).toString();
+    } catch (error) {
+      console.error('Error formatting token value:', error);
+      return '0';
     }
-    if (isConnected) initUserAndFetchData();
-  }, [address, isConnected]);
+  };
+
+  // Format timestamp to relative time
+  const formatTimeAgo = (timestamp: string) => {
+    const seconds = Math.floor((Date.now() - parseInt(timestamp) * 1000) / 1000);
+    let interval = Math.floor(seconds / 31536000);
+    
+    if (interval >= 1) return `${interval}y ago`;
+    interval = Math.floor(seconds / 2592000);
+    if (interval >= 1) return `${interval}mo ago`;
+    interval = Math.floor(seconds / 86400);
+    if (interval >= 1) return `${interval}d ago`;
+    interval = Math.floor(seconds / 3600);
+    if (interval >= 1) return `${interval}h ago`;
+    interval = Math.floor(seconds / 60);
+    if (interval >= 1) return `${interval}m ago`;
+    return 'Just now';
+  };
+
+  // Format address to show first and last 4 characters
+  const formatAddress = (addr: string) => {
+    if (!addr) return '';
+    return `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`;
+  };
+
+  // Load portfolio data
+  const loadPortfolioData = useCallback(async () => {
+    if (!address) return;
+    
+    setLoading(true);
+    try {
+      // Get transaction history from Avalanche testnet
+      const transactions = await getTransactionHistory(address);
+      
+      // Get token balances from Avalanche testnet
+      const tokenBalances = await getTokenBalances(address);
+      
+      // Get AI usage from database
+      const { data: usageData } = await supabase
+        .from('ai_usage')
+        .select('*')
+        .eq('user_address', address.toLowerCase())
+        .single();
+
+      // Calculate total AVAX balance from transactions
+      let totalAvax = 0;
+      transactions?.forEach(tx => {
+        if (tx.isError === '0') { // Only count successful transactions
+          totalAvax += parseFloat(tx.value) / 1e18; // Convert wei to AVAX
+        }
+      });
+
+      setData({
+        balanceAvax: totalAvax.toFixed(4),
+        transactions: transactions || [],
+        tokens: tokenBalances || [],
+        aiUsage: usageData || {
+          totalCalls: 0,
+          lastUsed: null,
+          favoriteTools: []
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error loading portfolio data:', error);
+      toast.error('Failed to load portfolio data');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [address]);
+
+  // Refresh data
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadPortfolioData();
+  };
+
+  // Load data on mount and when address changes
+  useEffect(() => {
+    if (isConnected && address) {
+      loadPortfolioData();
+    }
+  }, [isConnected, address, loadPortfolioData]);
 
   // --- Render States ---
 
@@ -91,43 +178,40 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-black text-zinc-100 p-6 md:p-8 space-y-8">
-      
       {/* --- Header Section --- */}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-white to-zinc-500 bg-clip-text text-transparent">
-            Command Center
+            Avalanche Dashboard
           </h1>
           <p className="text-zinc-400 mt-1 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            AI Agent Active • Mainnet
+            {isConnected ? 'Connected to Avalanche Fuji Testnet' : 'Disconnected'}
           </p>
         </div>
         <div className="flex items-center gap-3 bg-zinc-900/80 border border-zinc-800 rounded-full px-4 py-2 backdrop-blur-md">
-          <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500" />
+          <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-red-500 to-orange-500" />
           <span className="font-mono text-sm text-zinc-300">
-            {address?.slice(0,6)}...{address?.slice(-4)}
+            {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected'}
           </span>
         </div>
       </header>
 
       {/* --- Key Metrics Grid --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Net Worth Card */}
+        {/* AVAX Balance Card */}
         <GlowCard>
           <div className="flex justify-between items-start mb-4">
-            <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+            <div className="p-2 bg-red-500/10 rounded-lg text-red-400">
               <Wallet className="w-5 h-5" />
             </div>
-            <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Net Worth</span>
+            <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">AVAX Balance</span>
           </div>
           <div className="text-3xl font-bold text-white mb-1">
-            {loading ? "..." : `${data?.balanceEth || "0.00"} ETH`}
+            {loading ? "..." : `${data?.balanceAvax || "0.00"} AVAX`}
           </div>
-          <div className="flex items-center text-sm text-green-400 gap-1">
-            <ArrowUpRight className="w-4 h-4" />
-            <span>+2.4%</span>
-            <span className="text-zinc-500 ml-1">vs last week</span>
+          <div className="text-sm text-zinc-400">
+            ≈ ${(parseFloat(data?.balanceAvax || '0') * 15.42).toFixed(2)} USD
           </div>
         </GlowCard>
 
@@ -137,24 +221,26 @@ export default function DashboardPage() {
             <div className="p-2 bg-purple-500/10 rounded-lg text-purple-400">
               <Layers className="w-5 h-5" />
             </div>
-            <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Active Assets</span>
+            <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Token Holdings</span>
           </div>
           <div className="text-3xl font-bold text-white mb-1">
-            {loading ? "..." : data?.tokens.length || 0}
+            {loading ? "..." : data?.tokens?.length || 0}
           </div>
-          <p className="text-sm text-zinc-500">Tokens across Ethereum Network</p>
+          <p className="text-sm text-zinc-500">Tokens in your wallet</p>
         </GlowCard>
 
-        {/* AI Status Card */}
+        {/* Transaction Count Card */}
         <GlowCard>
           <div className="flex justify-between items-start mb-4">
-            <div className="p-2 bg-pink-500/10 rounded-lg text-pink-400">
-              <ShieldCheck className="w-5 h-5" />
+            <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+              <Activity className="w-5 h-5" />
             </div>
-            <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Health Score</span>
+            <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Transactions</span>
           </div>
-          <div className="text-3xl font-bold text-white mb-1">98/100</div>
-          <p className="text-sm text-zinc-500">Portfolio risk is low</p>
+          <div className="text-3xl font-bold text-white mb-1">
+            {loading ? "..." : data?.transactions?.length || 0}
+          </div>
+          <p className="text-sm text-zinc-500">Total on-chain transactions</p>
         </GlowCard>
       </div>
 
@@ -166,110 +252,282 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold flex items-center gap-2">
               <PieChart className="w-5 h-5 text-indigo-400" />
-              Holdings
+              Token Holdings
             </h2>
             <button 
-              onClick={() => window.location.reload()} 
-              className="p-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="p-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
           </div>
 
           <div className="space-y-3">
-            {data?.tokens.map((token, i) => (
+            {/* AVAX Balance */}
+            <GlowCard className="p-0 border-0 bg-transparent hover:bg-zinc-900/30">
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-4">
+                  <div className="relative w-10 h-10 rounded-full overflow-hidden border border-zinc-700 bg-zinc-800 flex items-center justify-center">
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-red-500 to-orange-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white">Avalanche</h3>
+                    <div className="text-xs text-zinc-400">AVAX</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="font-mono font-medium">{data?.balanceAvax || '0.00'}</div>
+                  <div className="text-xs text-zinc-500">
+                    ≈ ${(parseFloat(data?.balanceAvax || '0') * 15.42).toFixed(2)} USD
+                  </div>
+                </div>
+              </div>
+            </GlowCard>
+
+            {/* Other Tokens */}
+            {data?.tokens?.map((token, i) => (
               <GlowCard key={i} className="p-0 border-0 bg-transparent hover:bg-zinc-900/30">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between p-4">
                   <div className="flex items-center gap-4">
                     <div className="relative w-10 h-10 rounded-full overflow-hidden border border-zinc-700 bg-zinc-800">
                       {token.logo ? (
                         <Image 
-                          src={token.logo || '/placeholder-token.png'}
+                          src={token.logo}
                           alt={token.symbol}
                           width={40}
                           height={40}
                           className="object-cover w-full h-full"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
-                            target.src = '/placeholder-token.png';
+                            target.style.display = 'none';
+                            const fallback = target.parentElement?.querySelector('.token-fallback');
+                            if (fallback) fallback.classList.remove('hidden');
                           }}
                         />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xs font-bold text-zinc-500">
-                          {token.symbol[0]}
-                        </div>
-                      )}
+                      ) : null}
+                      <div className={`absolute inset-0 flex items-center justify-center text-xs font-bold text-zinc-400 token-fallback ${token.logo ? 'hidden' : ''}`}>
+                        {token.symbol?.substring(0, 3) || 'TOK'}
+                      </div>
                     </div>
                     <div>
-                      <h3 className="font-bold text-white">{token.name}</h3>
-                      <div className="text-xs text-zinc-400 flex items-center gap-1">
-                        <span className="bg-zinc-800 px-1.5 py-0.5 rounded text-[10px]">ERC-20</span>
-                        {token.symbol}
-                      </div>
+                      <h3 className="font-bold text-white">{token.name || 'Unknown Token'}</h3>
+                      <div className="text-xs text-zinc-400">{token.symbol || 'TOKEN'}</div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-mono font-medium">{token.balance}</div>
-                    {/* Placeholder for USD value if we add pricing later */}
-                    <div className="text-xs text-zinc-500">≈ $0.00</div>
+                    <div className="font-mono font-medium">
+                      {token.balance ? formatTokenValue(token.balance, token.tokenDecimal) : '0.00'}
+                    </div>
+                    <div className="text-xs text-zinc-500">
+                      {token.valueUsd ? `≈ $${token.valueUsd.toFixed(2)}` : 'Price unavailable'}
+                    </div>
                   </div>
                 </div>
               </GlowCard>
             ))}
             
-            {(!data?.tokens || data.tokens.length === 0) && (
+            {(!data?.tokens || data.tokens.length === 0) && !loading && (
               <div className="text-center py-12 border border-dashed border-zinc-800 rounded-xl text-zinc-500">
-                No tokens found. Try bridging some assets?
+                No tokens found in this wallet.
+              </div>
+            )}
+            
+            {loading && (
+              <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-400"></div>
               </div>
             )}
           </div>
+
+          {/* Transaction History */}
+          <div className="mt-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <Activity className="w-5 h-5 text-pink-400" />
+                Recent Transactions
+              </h2>
+              <button 
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="p-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+            
+            <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+              {data?.transactions?.slice(0, 10).map((tx, i) => (
+                <GlowCard key={i} className="p-0 border-0 bg-transparent hover:bg-zinc-900/30">
+                  <div className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${tx.isError === '1' ? 'bg-red-500/10 text-red-400' : 'bg-green-500/10 text-green-400'}`}>
+                          {tx.isError === '1' ? (
+                            <XCircle className="w-5 h-5" />
+                          ) : tx.to?.toLowerCase() === address?.toLowerCase() ? (
+                            <ArrowDownLeft className="w-5 h-5" />
+                          ) : (
+                            <ArrowUpRight className="w-5 h-5" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-medium text-white">
+                            {tx.isError === '1' ? 'Transaction Failed' : 
+                             tx.to?.toLowerCase() === address?.toLowerCase() ? 'Received AVAX' : 'Sent AVAX'}
+                          </div>
+                          <div className="text-xs text-zinc-400">
+                            {tx.timeStamp ? formatTimeAgo(tx.timeStamp) : 'Unknown time'}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`font-mono ${tx.to?.toLowerCase() === address?.toLowerCase() ? 'text-green-400' : 'text-white'}`}>
+                          {tx.isError !== '1' && (
+                            <>{tx.to?.toLowerCase() === address?.toLowerCase() ? '+' : '-'}{(parseInt(tx.value) / 1e18).toFixed(4)} AVAX</>
+                          )}
+                        </div>
+                        <a 
+                          href={`https://testnet.snowtrace.io/tx/${tx.hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-400 hover:underline"
+                        >
+                          View on Explorer
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </GlowCard>
+              ))}
+              
+              {(!data?.transactions || data.transactions.length === 0) && !loading && (
+                <div className="text-center py-12 border border-dashed border-zinc-800 rounded-xl text-zinc-500">
+                  No transactions found for this address.
+                </div>
+              )}
+              
+              {loading && (
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-400"></div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Right Column: NFTs & Trending (1/3 width) */}
+        {/* Right Column: AI Stats and Actions (1/3 width) */}
         <div className="space-y-6">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            <Activity className="w-5 h-5 text-pink-400" />
-            Digital Collectibles
-          </h2>
-          
-          <div className="grid grid-cols-2 gap-3">
-            {data?.nfts.map((nft, i) => (
-              <div key={i} className="group relative aspect-square rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900">
-                <Image 
-                  src={nft.image || '/placeholder-nft.png'}
-                  alt={nft.title}
-                  width={200}
-                  height={200}
-                  className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.src = '/placeholder-nft.png';
-                  }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
-                  <p className="text-xs font-bold text-white truncate">{nft.title}</p>
-                  <p className="text-[10px] text-zinc-300 truncate">{nft.collection}</p>
+          {/* AI Stats */}
+          <GlowCard className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 border-indigo-500/20">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-indigo-400" />
+              AI Assistant Stats
+            </h2>
+            
+            <div className="space-y-4">
+              <div>
+                <div className="text-sm text-zinc-400 mb-1">Total AI Queries</div>
+                <div className="text-2xl font-bold text-white">
+                  {data?.aiUsage?.totalCalls || 0}
                 </div>
               </div>
-            ))}
-            
-            {/* Empty State / Placeholder Slots */}
-            {(!data?.nfts || data.nfts.length < 4) && Array.from({ length: 4 - (data?.nfts?.length || 0) }).map((_, i) => (
-              <div key={`empty-${i}`} className="aspect-square rounded-xl border border-dashed border-zinc-800 bg-zinc-900/20 flex items-center justify-center">
-                <span className="text-zinc-700 text-xs">Empty Slot</span>
+              
+              <div>
+                <div className="text-sm text-zinc-400 mb-1">Last Used</div>
+                <div className="text-zinc-300">
+                  {data?.aiUsage?.lastUsed ? 
+                    new Date(data.aiUsage.lastUsed).toLocaleString() : 
+                    'Never'}
+                </div>
               </div>
-            ))}
-          </div>
+              
+              <div>
+                <div className="text-sm text-zinc-400 mb-2">Favorite Tools</div>
+                <div className="flex flex-wrap gap-2">
+                  {data?.aiUsage?.favoriteTools?.length ? (
+                    data.aiUsage.favoriteTools.map((tool, i) => (
+                      <span key={i} className="px-2 py-1 bg-indigo-500/10 text-indigo-300 text-xs rounded-full">
+                        {tool}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-zinc-500 text-sm">No favorite tools yet</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </GlowCard>
 
-          {/* Quick Action Suggestion */}
-          <GlowCard className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 border-indigo-500/20">
-            <h3 className="font-bold text-indigo-100 mb-2">Want to optimize yields?</h3>
-            <p className="text-xs text-indigo-200/60 mb-4">
-              Your idle ETH could be earning 4.5% APY on Lido or Rocket Pool.
-            </p>
-            <button className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors">
-              Ask AI Agent to Stake
-            </button>
+          {/* Quick Actions */}
+          <GlowCard className="border-zinc-800">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <Activity className="w-5 h-5 text-pink-400" />
+              Quick Actions
+            </h2>
+            
+            <div className="space-y-3">
+              <button 
+                onClick={() => router.push('/swap')}
+                className="w-full flex items-center justify-between p-3 bg-zinc-900/50 hover:bg-zinc-800/50 rounded-lg transition-colors border border-zinc-800"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+                    <ArrowUpDown className="w-4 h-4" />
+                  </div>
+                  <span>Swap Tokens</span>
+                </div>
+                <ArrowUpRight className="w-4 h-4 text-zinc-500" />
+              </button>
+              
+              <button 
+                onClick={() => router.push('/bridge')}
+                className="w-full flex items-center justify-between p-3 bg-zinc-900/50 hover:bg-zinc-800/50 rounded-lg transition-colors border border-zinc-800"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-500/10 rounded-lg text-purple-400">
+                    <Layers className="w-4 h-4" />
+                  </div>
+                  <span>Bridge Assets</span>
+                </div>
+                <ArrowUpRight className="w-4 h-4 text-zinc-500" />
+              </button>
+              
+              <button 
+                onClick={() => router.push('/stake')}
+                className="w-full flex items-center justify-between p-3 bg-zinc-900/50 hover:bg-zinc-800/50 rounded-lg transition-colors border border-zinc-800"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-500/10 rounded-lg text-green-400">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                  <span>Stake & Earn</span>
+                </div>
+                <ArrowUpRight className="w-4 h-4 text-zinc-500" />
+              </button>
+            </div>
+          </GlowCard>
+
+          {/* Network Status */}
+          <GlowCard className="border-zinc-800">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              Network Status
+            </h2>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-400">Avalanche Fuji</span>
+                <span className="text-green-400 text-sm font-medium">Operational</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-400">AI Services</span>
+                <span className="text-green-400 text-sm font-medium">Operational</span>
+              </div>
+              <div className="pt-3 mt-3 border-t border-zinc-800">
+                <p className="text-xs text-zinc-500">Last updated: {new Date().toLocaleString()}</p>
+              </div>
+            </div>
           </GlowCard>
         </div>
       </div>
