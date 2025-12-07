@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Home, MessageCircle, BarChart3, Settings } from 'lucide-react';
+import { Home, MessageCircle, BarChart3, Settings, TrendingUp } from 'lucide-react';
 
 export default function DashboardNav() {
   const pathname = usePathname();
@@ -16,8 +16,8 @@ export default function DashboardNav() {
     },
     {
       href: '/dashboard',
-      label: 'Dashboard',
-      icon: <BarChart3 className="w-4 h-4" />
+      label: 'Portfolio',
+      icon: <TrendingUp className="w-4 h-4" />
     },
     {
       href: '/chat',
@@ -32,15 +32,15 @@ export default function DashboardNav() {
   ];
 
   return (
-    <nav className="bg-white border-b border-gray-200 shadow-sm">
+    <nav className="bg-gradient-to-r from-red-50 to-orange-50 border-b border-red-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-gradient-to-r from-red-500 to-orange-500 rounded-lg flex items-center justify-center shadow-lg">
                 <span className="text-white font-bold text-sm">D</span>
               </div>
-              <span className="font-bold text-xl bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <span className="font-bold text-xl bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent">
                 DEFAI
               </span>
             </Link>
@@ -52,10 +52,10 @@ export default function DashboardNav() {
                 <Button
                   variant={pathname === item.href ? "default" : "ghost"}
                   size="sm"
-                  className={`flex items-center gap-2 ${
+                  className={`flex items-center gap-2 transition-all duration-300 ${
                     pathname === item.href
-                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white'
-                      : 'hover:bg-gray-100'
+                      ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg hover:shadow-xl'
+                      : 'hover:bg-red-100 text-gray-700'
                   }`}
                 >
                   {item.icon}

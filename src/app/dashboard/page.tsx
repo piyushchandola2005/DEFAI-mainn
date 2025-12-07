@@ -2,31 +2,35 @@
 
 import React, { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
 import { getPortfolioData } from "@/lib/portfolio";
-import { toast } from "sonner";
-import ChatInterface from "@/components/chat/ChatInterface";
-import DashboardNav from "@/components/dashboard/DashboardNav";
-import TransactionHistory from "@/components/dashboard/TransactionHistory";
-import AIActions from "@/components/dashboard/AIActions";
+import { GlowCard } from "@/components/ui/glow-card";
 import { 
   TrendingUp, 
-  TrendingDown, 
   Wallet, 
-  Activity, 
+  Layers, 
   ArrowUpRight, 
-  ArrowDownRight, 
+  Activity, 
+  PieChart,
   RefreshCw,
-  Sparkles,
-  Zap,
-  Shield
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
+  ShieldCheck
+} from "lucide-react";
+import Image from 'next/image';
+import { toast } from "sonner";
+
+// Types
+type Token = {
+  symbol: string;
+  name: string;
+  balance: string;
+  logo?: string;
+  address: string;
+  valueUsd?: number;
+};
 
 type PortfolioData = {
   balanceEth: string;
-  tokens: any[];
+  tokens: Token[];
   nfts: any[];
 };
 
@@ -34,419 +38,221 @@ export default function DashboardPage() {
   const { address, isConnected } = useAccount();
   const [data, setData] = useState<PortfolioData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  // Main data loading effect
+  // --- Data Fetching Logic ---
   useEffect(() => {
     async function initUserAndFetchData() {
       if (!address) return;
-      
       setLoading(true);
-
       try {
-        // Fetch real data from blockchain
         const freshData = await getPortfolioData(address);
-        
         if (freshData) {
           setData(freshData);
-          setLastUpdated(new Date());
-
-          // Save to Supabase
-          const { error } = await supabase
-            .from('users')
-            .upsert({ 
-              wallet_address: address, 
-              portfolio_data: freshData,
-              last_updated: new Date().toISOString()
-            });
-          
-          if (error) {
-            console.error('Supabase upsert error:', error);
-          }
-        }
-      } catch (error) {
-        console.error('Error in data fetch:', error);
-        
-        // Fallback: Try to load from Supabase
-        const { data: dbData, error: dbError } = await supabase
-          .from('users')
-          .select('portfolio_data')
-          .eq('wallet_address', address)
-          .single();
-          
-        if (dbData?.portfolio_data) {
-          setData(dbData.portfolio_data as PortfolioData);
-          toast.warning("Showing cached data");
-        }
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    if (isConnected && address) {
-      initUserAndFetchData();
-    }
-  }, [address, isConnected]);
-
-  const refreshData = async () => {
-    if (!isConnected || !address) return;
-    
-    setLoading(true);
-    try {
-      // Fetch real data from blockchain
-      const freshData = await getPortfolioData(address);
-      
-      if (freshData) {
-        setData(freshData);
-        setLastUpdated(new Date());
-
-        // Save to Supabase
-        const { error } = await supabase
-          .from('users')
-          .upsert({ 
+          await supabase.from('users').upsert({ 
             wallet_address: address, 
             portfolio_data: freshData,
             last_updated: new Date().toISOString()
           });
-        
-        if (error) {
-          console.error('Supabase upsert error:', error);
         }
+      } catch (error) {
+        console.error("Dashboard Error:", error);
+        const { data: dbData } = await supabase
+          .from('users')
+          .select('portfolio_data')
+          .eq('wallet_address', address)
+          .single();
+        if (dbData?.portfolio_data) setData(dbData.portfolio_data as PortfolioData);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error in data fetch:', error);
-      
-      // Fallback: Try to load from Supabase
-      const { data: dbData, error: dbError } = await supabase
-        .from('users')
-        .select('portfolio_data')
-        .eq('wallet_address', address)
-        .single();
-        
-      if (dbData?.portfolio_data) {
-        setData(dbData.portfolio_data as PortfolioData);
-        toast.warning("Showing cached data");
-      }
-    } finally {
-      setLoading(false);
     }
-  };
+    if (isConnected) initUserAndFetchData();
+  }, [address, isConnected]);
+
+  // --- Render States ---
 
   if (!isConnected) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
-        <Card className="w-full max-w-md shadow-xl">
-          <CardContent className="p-8 text-center">
-            <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Wallet className="w-8 h-8 text-white" />
+      <div className="flex min-h-[80vh] items-center justify-center">
+        <GlowCard className="w-full max-w-md text-center">
+          <div className="flex justify-center mb-4">
+            <div className="p-3 bg-indigo-500/20 rounded-full text-indigo-400">
+              <Wallet className="w-8 h-8" />
             </div>
-            <h2 className="text-2xl font-bold mb-2">Connect Wallet</h2>
-            <p className="text-muted-foreground">Please connect your wallet to view your portfolio</p>
-          </CardContent>
-        </Card>
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Connect Your Wallet</h2>
+          <p className="text-zinc-400">Access your personalized AI DeFi dashboard.</p>
+        </GlowCard>
       </div>
     );
   }
-
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
-        <Card className="w-full max-w-md shadow-xl">
-          <CardContent className="p-8 text-center">
-            <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
-            <h2 className="text-xl font-semibold mb-2">Loading Portfolio</h2>
-            <p className="text-muted-foreground">Fetching your blockchain data...</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const totalValue = parseFloat(data?.balanceEth || "0");
-  const changePercent = 2.5; // Mock change percentage
-  const isPositive = changePercent >= 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
-      <DashboardNav />
-      <ChatInterface />
+    <div className="min-h-screen bg-black text-zinc-100 p-6 md:p-8 space-y-8">
       
-      <div className="p-6 max-w-7xl mx-auto">
-        {/* Enhanced Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                Your Avalanche Portfolio
-              </h1>
-              <p className="text-muted-foreground mt-2 text-lg">
-                {lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString()} • Fuji Testnet` : 'Loading...'}
-              </p>
+      {/* --- Header Section --- */}
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-white to-zinc-500 bg-clip-text text-transparent">
+            Command Center
+          </h1>
+          <p className="text-zinc-400 mt-1 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            AI Agent Active • Mainnet
+          </p>
+        </div>
+        <div className="flex items-center gap-3 bg-zinc-900/80 border border-zinc-800 rounded-full px-4 py-2 backdrop-blur-md">
+          <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500" />
+          <span className="font-mono text-sm text-zinc-300">
+            {address?.slice(0,6)}...{address?.slice(-4)}
+          </span>
+        </div>
+      </header>
+
+      {/* --- Key Metrics Grid --- */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Net Worth Card */}
+        <GlowCard>
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+              <Wallet className="w-5 h-5" />
             </div>
-            <div className="flex items-center gap-4">
-              <Button onClick={refreshData} variant="outline" size="sm" className="shadow-md hover:shadow-lg transition-shadow">
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Refresh
-              </Button>
-              <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-3 rounded-full font-mono text-sm shadow-xl hover:shadow-2xl transition-all duration-300">
-                {address?.slice(0,6)}...{address?.slice(-4)}
-              </div>
-            </div>
+            <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Net Worth</span>
           </div>
+          <div className="text-3xl font-bold text-white mb-1">
+            {loading ? "..." : `${data?.balanceEth || "0.00"} ETH`}
+          </div>
+          <div className="flex items-center text-sm text-green-400 gap-1">
+            <ArrowUpRight className="w-4 h-4" />
+            <span>+2.4%</span>
+            <span className="text-zinc-500 ml-1">vs last week</span>
+          </div>
+        </GlowCard>
+
+        {/* Assets Count Card */}
+        <GlowCard>
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-2 bg-purple-500/10 rounded-lg text-purple-400">
+              <Layers className="w-5 h-5" />
+            </div>
+            <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Active Assets</span>
+          </div>
+          <div className="text-3xl font-bold text-white mb-1">
+            {loading ? "..." : data?.tokens.length || 0}
+          </div>
+          <p className="text-sm text-zinc-500">Tokens across Ethereum Network</p>
+        </GlowCard>
+
+        {/* AI Status Card */}
+        <GlowCard>
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-2 bg-pink-500/10 rounded-lg text-pink-400">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Health Score</span>
+          </div>
+          <div className="text-3xl font-bold text-white mb-1">98/100</div>
+          <p className="text-sm text-zinc-500">Portfolio risk is low</p>
+        </GlowCard>
+      </div>
+
+      {/* --- Main Content Split --- */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* Left Column: Token Holdings (2/3 width) */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <PieChart className="w-5 h-5 text-indigo-400" />
+              Holdings
+            </h2>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="p-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {data?.tokens.map((token, i) => (
+              <GlowCard key={i} className="p-0 border-0 bg-transparent hover:bg-zinc-900/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="relative w-10 h-10 rounded-full overflow-hidden border border-zinc-700 bg-zinc-800">
+                      {token.logo ? (
+                        <img src={token.logo} alt={token.symbol} className="object-cover w-full h-full" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xs font-bold text-zinc-500">
+                          {token.symbol[0]}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white">{token.name}</h3>
+                      <div className="text-xs text-zinc-400 flex items-center gap-1">
+                        <span className="bg-zinc-800 px-1.5 py-0.5 rounded text-[10px]">ERC-20</span>
+                        {token.symbol}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-mono font-medium">{token.balance}</div>
+                    {/* Placeholder for USD value if we add pricing later */}
+                    <div className="text-xs text-zinc-500">≈ $0.00</div>
+                  </div>
+                </div>
+              </GlowCard>
+            ))}
+            
+            {(!data?.tokens || data.tokens.length === 0) && (
+              <div className="text-center py-12 border border-dashed border-zinc-800 rounded-xl text-zinc-500">
+                No tokens found. Try bridging some assets?
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: NFTs & Trending (1/3 width) */}
+        <div className="space-y-6">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Activity className="w-5 h-5 text-pink-400" />
+            Digital Collectibles
+          </h2>
           
-          {/* Quick Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-xl shadow-sm hover:shadow-md transition-shadow">
-              <div className="w-10 h-10 bg-gradient-to-r from-green-400 to-green-600 rounded-lg flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">24h Change</p>
-                <p className="font-semibold text-green-600">+12.5%</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-xl shadow-sm hover:shadow-md transition-shadow">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-400 to-blue-600 rounded-lg flex items-center justify-center">
-                <Zap className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Gas Used</p>
-                <p className="font-semibold">0.021 AVAX</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-xl shadow-sm hover:shadow-md transition-shadow">
-              <div className="w-10 h-10 bg-gradient-to-r from-purple-400 to-purple-600 rounded-lg flex items-center justify-center">
-                <Shield className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Security</p>
-                <p className="font-semibold text-green-600">Protected</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Portfolio Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Total Value Card */}
-          <Card className="md:col-span-1 bg-gradient-to-br from-blue-600 to-purple-600 text-white border-none shadow-xl">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-white/80 font-medium flex items-center gap-2">
-                <Wallet className="w-5 h-5" />
-                Total Value
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-4xl font-bold mb-2">{totalValue.toFixed(4)} AVAX</div>
-              <div className="flex items-center gap-2">
-                {isPositive ? (
-                  <ArrowUpRight className="w-4 h-4 text-green-300" />
-                ) : (
-                  <ArrowDownRight className="w-4 h-4 text-red-300" />
-                )}
-                <span className={`text-sm ${isPositive ? 'text-green-300' : 'text-red-300'}`}>
-                  {Math.abs(changePercent)}% today
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Activity Card */}
-          <Card className="md:col-span-2 shadow-xl">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="w-5 h-5" />
-                Recent Activity
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                      <TrendingUp className="w-4 h-4 text-green-600" />
-                    </div>
-                    <div>
-                      <div className="font-medium">Portfolio Synced</div>
-                      <div className="text-xs text-muted-foreground">Data saved to Supabase</div>
-                    </div>
-                  </div>
-                  <span className="text-xs text-muted-foreground">Just now</span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                      <Wallet className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <div>
-                      <div className="font-medium">Wallet Connected</div>
-                      <div className="text-xs text-muted-foreground">{address?.slice(0,6)}...{address?.slice(-4)}</div>
-                    </div>
-                  </div>
-                  <span className="text-xs text-muted-foreground">Today</span>
+          <div className="grid grid-cols-2 gap-3">
+            {data?.nfts.map((nft, i) => (
+              <div key={i} className="group relative aspect-square rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900">
+                <img 
+                  src={nft.image} 
+                  alt={nft.title} 
+                  className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110" 
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
+                  <p className="text-xs font-bold text-white truncate">{nft.title}</p>
+                  <p className="text-[10px] text-zinc-300 truncate">{nft.collection}</p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Dashboard Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Left Column - Portfolio Overview */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Portfolio Overview Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Total Value Card */}
-              <Card className="bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 text-white border-none shadow-2xl hover:shadow-3xl transition-all duration-300">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-white/90 font-medium flex items-center gap-2">
-                    <Wallet className="w-5 h-5" />
-                    Total Value
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-5xl font-bold mb-3">{totalValue.toFixed(4)} AVAX</div>
-                  <div className="flex items-center gap-2">
-                    {isPositive ? (
-                      <ArrowUpRight className="w-5 h-5 text-green-300" />
-                    ) : (
-                      <ArrowDownRight className="w-5 h-5 text-red-300" />
-                    )}
-                    <span className={`text-lg ${isPositive ? 'text-green-300' : 'text-red-300'}`}>
-                      {Math.abs(changePercent)}% today
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Activity Card */}
-              <Card className="shadow-xl hover:shadow-2xl transition-shadow duration-300">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-blue-500" />
-                    Recent Activity
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-green-50/50 rounded-lg border border-green-100">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                          <TrendingUp className="w-4 h-4 text-green-600" />
-                        </div>
-                        <div>
-                          <div className="font-medium">Portfolio Synced</div>
-                          <div className="text-xs text-muted-foreground">Data saved to Supabase</div>
-                        </div>
-                      </div>
-                      <span className="text-xs text-muted-foreground">Just now</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-blue-50/50 rounded-lg border border-blue-100">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                          <Wallet className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div>
-                          <div className="font-medium">Wallet Connected</div>
-                          <div className="text-xs text-muted-foreground">{address?.slice(0,6)}...{address?.slice(-4)}</div>
-                        </div>
-                      </div>
-                      <span className="text-xs text-muted-foreground">Today</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Tokens & NFTs Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Tokens */}
-              <Card className="shadow-xl hover:shadow-2xl transition-shadow duration-300">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <Wallet className="w-5 h-5 text-blue-500" />
-                      Token Holdings
-                    </span>
-                    <span className="text-sm text-muted-foreground bg-blue-50 px-2 py-1 rounded-full">
-                      {data?.tokens?.length || 0} tokens
-                    </span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3 max-h-80 overflow-y-auto">
-                    {data?.tokens?.map((token: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between p-3 hover:bg-blue-50/50 rounded-lg transition-all duration-200 border border-transparent hover:border-blue-200">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-tr from-blue-400 to-purple-400 rounded-full flex items-center justify-center shadow-sm">
-                            <span className="text-xs font-bold text-white">{token.symbol?.slice(0,2)}</span>
-                          </div>
-                          <div>
-                            <div className="font-bold">{token.symbol}</div>
-                            <div className="text-xs text-muted-foreground">{token.name}</div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-mono font-medium">{token.balance}</div>
-                          <div className="text-xs text-muted-foreground">{token.symbol}</div>
-                        </div>
-                      </div>
-                    ))}
-                    {(!data?.tokens || data.tokens.length === 0) && (
-                      <div className="text-center py-10 text-muted-foreground">
-                        <Wallet className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                        <p>No tokens found</p>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* NFTs */}
-              <Card className="shadow-xl hover:shadow-2xl transition-shadow duration-300">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <Sparkles className="w-5 h-5 text-purple-500" />
-                      NFT Collection
-                    </span>
-                    <span className="text-sm text-muted-foreground bg-purple-50 px-2 py-1 rounded-full">
-                      {data?.nfts?.length || 0} items
-                    </span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto">
-                    {data?.nfts?.map((nft: any, i: number) => (
-                      <Card key={i} className="overflow-hidden hover:scale-105 transition-all duration-200 shadow-md hover:shadow-xl">
-                        <div className="aspect-square relative bg-gradient-to-br from-purple-100 to-pink-100">
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="w-8 h-8 bg-purple-300 rounded" />
-                          </div>
-                        </div>
-                        <div className="p-3">
-                          <h3 className="font-semibold truncate text-sm">{nft.title}</h3>
-                          <p className="text-xs text-muted-foreground truncate">{nft.collection}</p>
-                        </div>
-                      </Card>
-                    ))}
-                    {(!data?.nfts || data.nfts.length === 0) && (
-                      <div className="col-span-2 text-center py-10 text-muted-foreground">
-                        <Sparkles className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                        <p>No NFTs found</p>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            ))}
+            
+            {/* Empty State / Placeholder Slots */}
+            {(!data?.nfts || data.nfts.length < 4) && Array.from({ length: 4 - (data?.nfts?.length || 0) }).map((_, i) => (
+              <div key={`empty-${i}`} className="aspect-square rounded-xl border border-dashed border-zinc-800 bg-zinc-900/20 flex items-center justify-center">
+                <span className="text-zinc-700 text-xs">Empty Slot</span>
+              </div>
+            ))}
           </div>
 
-          {/* Right Column - AI & Transactions */}
-          <div className="space-y-6">
-            <AIActions />
-            <TransactionHistory />
-          </div>
+          {/* Quick Action Suggestion */}
+          <GlowCard className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 border-indigo-500/20">
+            <h3 className="font-bold text-indigo-100 mb-2">Want to optimize yields?</h3>
+            <p className="text-xs text-indigo-200/60 mb-4">
+              Your idle ETH could be earning 4.5% APY on Lido or Rocket Pool.
+            </p>
+            <button className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors">
+              Ask AI Agent to Stake
+            </button>
+          </GlowCard>
         </div>
       </div>
     </div>

@@ -6,7 +6,7 @@ const Page = () => {
       <h1 className="text-3xl font-bold mb-4">DEFAI Project</h1>
       
       <p className="mt-6">
-        The primary objective of the DEFAI project is to fundamentally re-engineer the user experience of decentralized finance (DeFi), lowering the steep learning curve that currently prevents mainstream adoption. This will be achieved by creating an intuitive, AI-powered conversational interface that serves as a user&apos;s single point of entry into the complex DeFi ecosystem.
+        The primary objective of the DEFAI project is to fundamentally re-engineer the user experience of decentralized finance (DeFi), lowering the steep learning curve that currently prevents mainstream adoption. This will be achieved by creating an intuitive, AI-powered conversational interface that serves as a user's single point of entry into the complex DeFi ecosystem.
       </p>
       
       <p className="mt-4">

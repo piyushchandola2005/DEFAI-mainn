@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -36,7 +36,7 @@ export default function ChatInterface() {
     if (isConnected && address) {
       loadChats();
     }
-  }, [isConnected, address, loadChats]);
+  }, [isConnected, address]);
 
   useEffect(() => {
     scrollToBottom();
@@ -46,7 +46,7 @@ export default function ChatInterface() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const loadChats = useCallback(async () => {
+  const loadChats = async () => {
     if (!address) return;
     
     const { data, error } = await supabase
@@ -60,7 +60,7 @@ export default function ChatInterface() {
     } else {
       setChats(data || []);
     }
-  }, [address]);
+  };
 
   const loadMessages = async (chatId: string) => {
     const { data, error } = await supabase

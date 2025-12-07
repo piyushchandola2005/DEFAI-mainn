@@ -29,6 +29,7 @@ const NavLinkMobile: React.FC<NavLinkProps> = ({ activeLink, isMenuOpen, onClose
 	const links: [string, string][] = [
 		["/", "Home"],
 		["/project", "Project"],
+		["/dashboard", "Portfolio"],
 	];
 
 	return (

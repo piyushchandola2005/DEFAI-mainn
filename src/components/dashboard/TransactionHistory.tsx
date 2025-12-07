@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -29,9 +29,9 @@ export default function TransactionHistory() {
     if (address) {
       loadTransactions();
     }
-  }, [address, loadTransactions]);
+  }, [address]);
 
-  const loadTransactions = useCallback(async () => {
+  const loadTransactions = async () => {
     setLoading(true);
     try {
       // For now, simulate transaction data
@@ -78,7 +78,7 @@ export default function TransactionHistory() {
     } finally {
       setLoading(false);
     }
-  }, [address]);
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
