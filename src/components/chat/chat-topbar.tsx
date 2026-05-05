@@ -17,9 +17,10 @@ import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import Image from "next/image";
 import { DashboardButton } from "../dashboard/DashboardButton";
+import { useWallet } from "@solana/wallet-adapter-react";
 interface ChatTopbarProps {
 	isLoading: boolean;
 	chatId?: string;
@@ -41,6 +42,12 @@ export default function ChatTopbar({
 	const [mounted, setMounted] = React.useState(false);
 	const setIsLocal = useChatStore((state) => state.setIsLocal);
 	const isLocal = useChatStore((state) => state.isLocal);
+	const { connected, disconnect, publicKey, wallet } = useWallet();
+	const { setVisible } = useWalletModal();
+
+	const shortAddress = publicKey
+		? `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}`
+		: "";
 
 	useEffect(() => {
 		setMounted(true);
@@ -133,9 +140,25 @@ export default function ChatTopbar({
 
 				<DashboardButton />
 				{mounted ? (
-					<WalletMultiButton className="!h-9 !text-sm" />
+					connected ? (
+						<Button
+							variant="ghost"
+							className="h-9 px-2 text-sm text-foreground hover:bg-transparent"
+							onClick={() => disconnect()}
+						>
+							{wallet?.adapter?.name || "Wallet"} {shortAddress}
+						</Button>
+					) : (
+						<Button
+							variant="ghost"
+							className="h-9 px-2 text-sm text-foreground hover:bg-transparent"
+							onClick={() => setVisible(true)}
+						>
+							Connect Wallet
+						</Button>
+					)
 				) : (
-					<Button className="!h-9 !text-sm" variant="secondary">
+					<Button className="!h-9 !text-sm" variant="ghost">
 						Connect Wallet
 					</Button>
 				)}

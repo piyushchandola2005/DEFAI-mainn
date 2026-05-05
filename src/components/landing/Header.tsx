@@ -1,21 +1,24 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronUp, Hexagon } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useMediaQuery } from "@mui/material";
 import NavLinkMobile from "./NavLinkMobile";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import Image from "next/image";
 
 const Header = () => {
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const [isScrolled, setIsScrolled] = useState(false);
 	const [mounted, setMounted] = useState(false);
-	const isDesktop = useMediaQuery("(min-width: 768px)");
-	const { connected } = useWallet();
+	const { connected, disconnect, publicKey, wallet } = useWallet();
+	const { setVisible } = useWalletModal();
 	const isConnected = connected;
+
+	const shortAddress = publicKey
+		? `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}`
+		: "";
 
 	useEffect(() => {
 		setMounted(true);
@@ -75,9 +78,25 @@ const Header = () => {
 						</div>
 					)}
 					{mounted ? (
-						<WalletMultiButton className="!h-8 !text-xs" />
+						isConnected ? (
+							<Button
+								variant="ghost"
+								className="h-8 px-2 text-xs text-foreground hover:bg-transparent"
+								onClick={() => disconnect()}
+							>
+								{wallet?.adapter?.name || "Wallet"} {shortAddress}
+							</Button>
+						) : (
+							<Button
+								variant="ghost"
+								className="h-8 px-2 text-xs text-foreground hover:bg-transparent"
+								onClick={() => setVisible(true)}
+							>
+								Connect Wallet
+							</Button>
+						)
 					) : (
-						<Button className="!h-8 !text-xs" variant="secondary">
+						<Button className="!h-8 !text-xs" variant="ghost">
 							Connect Wallet
 						</Button>
 					)}

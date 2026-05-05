@@ -20,6 +20,7 @@ import {
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { toast } from "sonner";
+import { SOL_LOGO } from "@/lib/solana-portfolio";
 
 // Types
 type Token = {
@@ -65,18 +66,15 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Format token value with decimals
-  const formatTokenValue = (value?: string | number, decimals: string | number = '18') => {
+  const formatTokenValue = (value?: string | number) => {
     try {
       if (!value) return '0';
       const strValue = value.toString();
       if (!strValue) return '0';
-      
-      const decimalNumber = parseInt(decimals.toString());
       const parsedValue = parseFloat(strValue);
       
       if (isNaN(parsedValue)) return '0';
-      
-      const formatted = (parsedValue / Math.pow(10, decimalNumber)).toFixed(4);
+      const formatted = parsedValue.toFixed(4);
       return parseFloat(formatted).toString();
     } catch (error) {
       console.error('Error formatting token value:', error);
@@ -251,7 +249,7 @@ export default function DashboardPage() {
           <div className="text-3xl font-bold text-white mb-1">
             {loading ? "..." : data?.tokens?.length || 0}
           </div>
-          <p className="text-sm text-zinc-500">Tokens in your wallet</p>
+          <p className="text-sm text-zinc-500">Assets in your wallet</p>
         </GlowCard>
 
         {/* Transaction Count Card */}
@@ -293,8 +291,8 @@ export default function DashboardPage() {
             <GlowCard className="p-0 border-0 bg-transparent hover:bg-zinc-900/30">
               <div className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-4">
-                  <div className="relative w-10 h-10 rounded-full overflow-hidden border border-zinc-700 bg-zinc-800 flex items-center justify-center">
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-red-500 to-orange-500" />
+                    <div className="relative w-10 h-10 rounded-full overflow-hidden border border-zinc-700 bg-zinc-800 flex items-center justify-center">
+                    <Image src={SOL_LOGO} alt="Solana" width={40} height={40} className="object-cover w-full h-full" unoptimized />
                   </div>
                   <div>
                     <h3 className="font-bold text-white">Solana</h3>
@@ -311,18 +309,22 @@ export default function DashboardPage() {
             </GlowCard>
 
             {/* Other Tokens */}
-            {data?.tokens?.filter((t) => t.symbol !== "SOL").map((token, i) => (
+            {data?.tokens
+              ?.filter((t) => t.symbol !== "SOL")
+              .sort((a, b) => (b.valueUsd || 0) - (a.valueUsd || 0))
+              .map((token, i) => (
               <GlowCard key={i} className="p-0 border-0 bg-transparent hover:bg-zinc-900/30">
                 <div className="flex items-center justify-between p-4">
                   <div className="flex items-center gap-4">
                     <div className="relative w-10 h-10 rounded-full overflow-hidden border border-zinc-700 bg-zinc-800">
                       {token.logo ? (
-                        <Image 
+                        <Image
                           src={token.logo}
                           alt={token.symbol}
                           width={40}
                           height={40}
                           className="object-cover w-full h-full"
+                          unoptimized
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             target.style.display = 'none';
@@ -342,7 +344,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-right">
                     <div className="font-mono font-medium">
-                      {token.balance ? formatTokenValue(token.balance, token.tokenDecimal) : '0.00'}
+                      {token.balance ? formatTokenValue(token.balance) : '0.00'}
                     </div>
                     <div className="text-xs text-zinc-500">
                       {token.valueUsd ? `≈ $${token.valueUsd.toFixed(2)}` : 'Price unavailable'}
