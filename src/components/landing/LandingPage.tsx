@@ -1,11 +1,9 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useEffect, useState } from "react";
-import { avalancheFuji } from "viem/chains";
-import { useAccount, useChainId, useSwitchChain } from "wagmi";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
 
 import {
 	Accordion,
@@ -21,22 +19,17 @@ import Image from "next/image";
 import { Loader2, Plus } from "lucide-react";
 
 export default function LandingPage() {
-	const chainId = useChainId();
-	const { switchChain } = useSwitchChain();
-	const { address, isConnected } = useAccount();
+	const { connected } = useWallet();
+	const isConnected = connected;
 	const router = useRouter();
 	const [isLoading, setIsLoading] = useState(false);
 	const [hasLoaded, setHasLoaded] = useState(false);
+	const [mounted, setMounted] = useState(false);
 
 	useEffect(() => {
 		setHasLoaded(true);
+		setMounted(true);
 	}, []);
-
-	useEffect(() => {
-		if (isConnected && chainId !== avalancheFuji.id) {
-			switchChain?.({ chainId: avalancheFuji.id });
-		}
-	}, [chainId, isConnected, switchChain]);
 
 	return (
 		<div className="container min-h-screen flex flex-col items-center text-foreground">
@@ -55,7 +48,7 @@ export default function LandingPage() {
 				</motion.h1>
 
 				<p className="font-normal text-lg text-muted-foreground tracking-normal mt-1 mb-8 max-w-xl mx-auto text-center">
-					Trade, swap, and manage assets with natural language. <br /> AI-powered DeFi Agent for Avalanche
+					Trade, swap, and chase memecoins with natural language. <br /> AI-powered Solana agent
 				</p>
 
 				{/* Action Buttons */}
@@ -74,8 +67,12 @@ export default function LandingPage() {
 							Start
 							{isLoading && <Loader2 className="animate-spin ml-2 w-4 h-4"/>}
 						</Button>
+					) : mounted ? (
+						<WalletMultiButton className="!rounded-full" />
 					) : (
-						<ConnectButton chainStatus="icon" showBalance={false} label="Connect Wallet" />
+						<Button className="rounded-full" variant="secondary">
+							Connect Wallet
+						</Button>
 					)}
 				</div>
 
@@ -83,21 +80,21 @@ export default function LandingPage() {
 				<div className="mt-12 w-full mx-auto">
 					<div className="flex items-center gap-4 mb-4">
 						<Image
-							src="/logo-avax.png"
+							src="/yellow_logo.svg"
 							alt="Defai Logo"
 							width={500}
 							height={500}
 							className="h-8 w-8 object-contain"
 						/>
 						<p className="text-lg text-muted-foreground">
-							Hey, how can I help you on Avalanche?
+							Hey, how can I help you on Solana?
 						</p>
 					</div>
 					<Textarea
 						autoComplete="off"
 						name="message"
 						className="pointer-events-none shadow-2xl bg-accent resize-none text-avax text-bold text-xl px-4 py-6 placeholder:text-zinc-100 disabled:opacity-50 w-full rounded-md"
-						placeholder="Swap 100 USDC to AVAX..."
+						placeholder="Swap 1 SOL to USDC..."
 					/>
 				</div>
 
@@ -130,7 +127,7 @@ export default function LandingPage() {
 						</AccordionTrigger>
 						<AccordionContent>
 							<p className="text-base text-muted-foreground mt-2">
-								We build AI agents that streamline <strong>DeFi operations and cross-chain interactions</strong> via natural language interfaces on <strong>Avalanche</strong>. Instead of manually juggling
+								We build AI agents that streamline <strong>Solana DeFi and memecoin trades</strong> via natural language. Instead of manually juggling
 								complex protocols, our agent helps you perform trades, swaps, and more with simple commands.
 							</p>
 						</AccordionContent>
@@ -143,8 +140,8 @@ export default function LandingPage() {
 						<AccordionContent>
 							<p className="text-base text-muted-foreground mt-2">
 								Connect your wallet and type what you want to do in plain English.
-								Our AI will figure out the best way to execute your request on Avalanche,
-								whether that’s swapping tokens, bridging assets, or exploring new protocols.
+								Our AI will figure out how to execute your request on Solana—swaps via Jupiter,
+								SPL sends, and SOL transfers—with clear confirmations before anything moves on-chain.
 							</p>
 						</AccordionContent>
 					</AccordionItem>

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
+import { normalizeWalletAddress } from "@/lib/user-management";
 
 interface NameCollectionDialogProps {
   isOpen: boolean;
@@ -29,7 +30,7 @@ export function NameCollectionDialog({ isOpen, walletAddress, onComplete }: Name
           display_name: name.trim(),
           updated_at: new Date().toISOString()
         })
-        .eq('wallet_address', walletAddress.toLowerCase());
+        .eq('wallet_address', normalizeWalletAddress(walletAddress));
 
       if (error) throw error;
       

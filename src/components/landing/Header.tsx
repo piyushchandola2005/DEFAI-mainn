@@ -5,17 +5,20 @@ import { ChevronDown, ChevronUp, Hexagon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useMediaQuery } from "@mui/material";
 import NavLinkMobile from "./NavLinkMobile";
-import { useAccount } from "wagmi";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import Image from "next/image";
 
 const Header = () => {
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const [isScrolled, setIsScrolled] = useState(false);
+	const [mounted, setMounted] = useState(false);
 	const isDesktop = useMediaQuery("(min-width: 768px)");
-	const { address, isConnected } = useAccount(); // Wagmi pour voir si le wallet est connecté
+	const { connected } = useWallet();
+	const isConnected = connected;
 
 	useEffect(() => {
+		setMounted(true);
 		const handleScroll = () => setIsScrolled(window.scrollY > 50);
 		window.addEventListener("scroll", handleScroll);
 		return () => window.removeEventListener("scroll", handleScroll);
@@ -71,7 +74,13 @@ const Header = () => {
 							Connected
 						</div>
 					)}
-					<ConnectButton label="Connect" accountStatus="avatar" showBalance={false} />
+					{mounted ? (
+						<WalletMultiButton className="!h-8 !text-xs" />
+					) : (
+						<Button className="!h-8 !text-xs" variant="secondary">
+							Connect Wallet
+						</Button>
+					)}
 				</div>
 			</div>
 		</header>

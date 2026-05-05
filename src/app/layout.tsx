@@ -3,14 +3,14 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
-import { Web3Provider } from "@/providers/web3-provider";
+import { SolanaProvider } from "@/providers/solana-provider";
 import { WalletConnectionManager } from "@/components/WalletConnectionManager";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
 	title: "Defai",
-	description: "AI-powered conversational interface for decentralized finance",
+	description: "AI-powered Solana assistant for swaps, SPL transfers, and memecoin workflows",
 	icons: {
 		icon: [
 			{ rel: "icon", url: "/black_logo.svg", type: "image/svg+xml" },
@@ -34,11 +34,11 @@ export default function RootLayout({
 		<html lang="en" suppressHydrationWarning>
 			<body className={`antialiased tracking-tight ${inter.className}`}>
 				<ThemeProvider attribute="class" defaultTheme="dark">
-					<Web3Provider>
+					<SolanaProvider>
 						<WalletConnectionManager />
 						{children}
 						<Toaster />
-					</Web3Provider>
+					</SolanaProvider>
 				</ThemeProvider>
 			</body>
 		</html>

@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ArrowUpRight, ArrowDownLeft, Clock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { useAccount } from 'wagmi';
-import { supabase } from '@/lib/supabase';
+import { useWallet } from '@solana/wallet-adapter-react';
 
 interface Transaction {
   id: string;
@@ -21,17 +20,12 @@ interface Transaction {
 }
 
 export default function TransactionHistory() {
-  const { address } = useAccount();
+  const { publicKey } = useWallet();
+  const address = publicKey?.toBase58();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (address) {
-      loadTransactions();
-    }
-  }, [address]);
-
-  const loadTransactions = async () => {
+  const loadTransactions = useCallback(async () => {
     setLoading(true);
     try {
       // For now, simulate transaction data
@@ -42,7 +36,7 @@ export default function TransactionHistory() {
           type: 'swap',
           amount: '100',
           token: 'USDC',
-          from: 'AVAX',
+          from: 'SOL',
           to: 'USDC',
           status: 'completed',
           timestamp: new Date(Date.now() - 300000).toISOString(),
@@ -52,7 +46,7 @@ export default function TransactionHistory() {
           id: '2',
           type: 'send',
           amount: '0.5',
-          token: 'AVAX',
+          token: 'SOL',
           from: address,
           to: '0x9876...5432',
           status: 'completed',
@@ -78,7 +72,13 @@ export default function TransactionHistory() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [address]);
+
+  useEffect(() => {
+    if (address) {
+      loadTransactions();
+    }
+  }, [address, loadTransactions]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {

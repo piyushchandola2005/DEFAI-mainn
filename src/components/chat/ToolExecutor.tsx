@@ -25,6 +25,15 @@ const ToolExecutor: React.FC<ToolExecutorProps> = ({
 			})
 			.catch((error) => {
 				console.error("Error executing tool", error);
+				// Always resolve the tool call to avoid infinite loaders in UI.
+				if (addToolResult) {
+					addToolResult({
+						toolCallId,
+						result: JSON.stringify({
+							error: error instanceof Error ? error.message : "Tool execution failed",
+						}),
+					});
+				}
 			});
 	}, [toolCallId, addToolResult, executeTool]);
 

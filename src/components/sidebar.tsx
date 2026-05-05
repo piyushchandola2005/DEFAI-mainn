@@ -63,7 +63,7 @@ export function Sidebar({
           <div className="flex p-2 gap-3 items-center ">
             {!isCollapsed && !isMobile && (
               <Image
-                src="/logo-avax.png"
+                src="/yellow_logo.svg"
                 alt="AI"
                 width={28}
                 height={28}

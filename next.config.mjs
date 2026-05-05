@@ -1,3 +1,8 @@
+import { createRequire } from "module";
+import webpack from "webpack";
+
+const require = createRequire(import.meta.url);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
@@ -24,11 +29,17 @@ const nextConfig = {
     // Fixes npm packages that depend on `fs` module
     if (!isServer) {
       config.resolve.fallback = {
-        ...config.resolve.fallback, // Garde les autres options définies par Next.js
-        fs: false, // Désactive fs pour éviter les erreurs côté client
+        ...config.resolve.fallback,
+        fs: false,
         module: false,
         perf_hooks: false,
+        buffer: require.resolve("buffer/"),
       };
+      config.plugins.push(
+        new webpack.ProvidePlugin({
+          Buffer: ["buffer", "Buffer"],
+        })
+      );
     }
     return config;
   },

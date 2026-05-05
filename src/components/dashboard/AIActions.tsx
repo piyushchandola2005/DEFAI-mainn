@@ -14,7 +14,7 @@ import {
   Loader2,
   CheckCircle
 } from 'lucide-react';
-import { useAccount } from 'wagmi';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { toast } from 'sonner';
 
 interface AIAction {
@@ -27,7 +27,9 @@ interface AIAction {
 }
 
 export default function AIActions() {
-  const { address, isConnected } = useAccount();
+  const { publicKey, connected } = useWallet();
+  const address = publicKey?.toBase58();
+  const isConnected = connected;
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -38,7 +40,7 @@ export default function AIActions() {
       title: 'Swap Tokens',
       description: 'AI-powered token swapping with best rates',
       icon: <ArrowRightLeft className="w-5 h-5 text-blue-500" />,
-      placeholder: 'e.g., Swap 1 AVAX to USDC',
+      placeholder: 'e.g., Swap 1 SOL to USDC',
       action: 'swap'
     },
     {
@@ -62,7 +64,7 @@ export default function AIActions() {
       title: 'Check Balance',
       description: 'Quick balance check with AI',
       icon: <Wallet className="w-5 h-5 text-orange-500" />,
-      placeholder: 'e.g., What is my AVAX balance?',
+      placeholder: 'e.g., What is my SOL balance?',
       action: 'balance'
     }
   ];

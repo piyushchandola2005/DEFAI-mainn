@@ -4,12 +4,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Home, MessageCircle, Settings, TrendingUp } from 'lucide-react';
-import { useAccount } from 'wagmi';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { cn } from '@/lib/utils';
 
 export default function DashboardNav() {
   const pathname = usePathname();
-  const { address } = useAccount();
+  const { publicKey } = useWallet();
+  const address = publicKey?.toBase58();
 
   const navItems = [
     {

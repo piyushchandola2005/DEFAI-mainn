@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { Copy } from "lucide-react";
-import { useAccount } from "wagmi";
+import { useWallet } from "@solana/wallet-adapter-react";
 import {
 	Dialog,
 	DialogContent,
@@ -20,12 +20,6 @@ interface ConfirmationDialogProps {
 	addToolResult?: (args: { toolCallId: string; result: string }) => void;
 }
 
-// Simple dictionary to map token names to addresses
-const tokenAddresses: Record<string, string> = {
-	AVAX: "0xAvax1234567890abcdef0000000000000000000000",
-	USDC: "0xUsdc1234567890abcdef0000000000000000000000",
-	// ... add more if needed
-};
 
 function truncateAddress(address: string, start = 6, end = 4): string {
 	if (!address) return "";
@@ -54,17 +48,13 @@ export function ConfirmationDialog({
 
 	// NOTE: Removed the useEffect that was setting executedRef.current = true
 
-	// WAGMI: get user address
-	const { address: userAddr } = useAccount();
+	const { publicKey } = useWallet();
+	const userAddr = publicKey?.toBase58();
 
-	// Map token name to token address, if provided
-	let mappedTokenAddress = "";
-	if (parameters.tokenName && tokenAddresses[parameters.tokenName]) {
-		mappedTokenAddress = tokenAddresses[parameters.tokenName];
-	}
-	if (!mappedTokenAddress) {
-		mappedTokenAddress = "0x1234567890abcdef000000000000000000000000";
-	}
+	const mappedTokenAddress =
+		(parameters as { tokenMint?: string }).tokenMint ??
+		(parameters as { mint?: string }).mint ??
+		"";
 
 	// Label for the dialog title
 	const actionLabels = {
@@ -189,11 +179,17 @@ export function ConfirmationDialog({
 						{Object.entries(parameters).map(([key, value]) => {
 							if (!value) return null;
 							let displayValue = value;
-							if (typeof value === "string" && value.startsWith("0x")) {
+							if (
+								typeof value === "string" &&
+								value.length >= 32 &&
+								value.length <= 48
+							) {
 								displayValue = truncateAddress(value);
 							}
 							const isLikelyAddress =
-								typeof value === "string" && value.startsWith("0x");
+								typeof value === "string" &&
+								value.length >= 32 &&
+								value.length <= 48;
 							return (
 								<div key={key} className="flex justify-between py-2 text-sm">
 									<span className="font-semibold">{key}:</span>

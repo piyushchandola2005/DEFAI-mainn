@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { useAccount } from 'wagmi';
+import { useWallet } from "@solana/wallet-adapter-react";
 import { supabase } from "@/lib/supabase";
-import { getTransactionHistory, getTokenBalances } from "@/lib/avalanche";
+import { getTransactionHistory, getTokenBalances } from "@/lib/solana-portfolio";
+import { getTxExplorerUrl } from "@/lib/solana-config";
 import { GlowCard } from "@/components/ui/glow-card";
 import { 
-  TrendingUp, 
   Wallet, 
   Layers, 
   ArrowUpRight, 
@@ -14,8 +14,6 @@ import {
   PieChart,
   RefreshCw,
   ShieldCheck,
-  Clock,
-  ArrowDownLeft,
   ArrowUpDown,
   XCircle
 } from "lucide-react";
@@ -47,7 +45,7 @@ type Transaction = {
 };
 
 type PortfolioData = {
-  balanceAvax: string;
+  balanceSol: string;
   transactions: Transaction[];
   tokens: Token[];
   aiUsage: {
@@ -59,7 +57,9 @@ type PortfolioData = {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { address, isConnected } = useAccount();
+  const { publicKey, connected } = useWallet();
+  const address = publicKey?.toBase58();
+  const isConnected = connected;
   const [data, setData] = useState<PortfolioData | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -113,17 +113,14 @@ export default function DashboardPage() {
     
     setLoading(true);
     try {
-      // Get transaction history from Avalanche testnet
       const transactions = await getTransactionHistory(address);
-      
-      // Get token balances from Avalanche testnet
       const tokenBalances = await getTokenBalances(address);
       
       // Get user from database
       const { data: userData } = await supabase
         .from('users')
         .select('*')
-        .eq('wallet_address', address.toLowerCase())
+        .eq('wallet_address', address)
         .single();
       
       // Get AI usage from database using user_id
@@ -137,26 +134,25 @@ export default function DashboardPage() {
         usageData = aiUsageData;
       }
 
-          // Get AVAX balance from token balances
-      const avaxBalance = Array.isArray(tokenBalances) 
-        ? tokenBalances.find(t => t.symbol === 'AVAX')?.balance || '0'
-        : '0';
+      const solBalance = Array.isArray(tokenBalances)
+        ? tokenBalances.find((t) => t.symbol === "SOL")?.balance || "0"
+        : "0";
 
       // Ensure we're working with arrays and handle potential undefined/null cases
       const safeTransactions = Array.isArray(transactions) ? transactions : [];
       const safeTokenBalances = Array.isArray(tokenBalances) ? tokenBalances : [];
       
       setData({
-        balanceAvax: avaxBalance,
+        balanceSol: solBalance,
         transactions: safeTransactions,
         tokens: safeTokenBalances.map((token: any) => ({
           symbol: token.symbol,
           name: token.name,
           balance: token.balance,
           logo: token.logo,
-          address: token.contractAddress,
+          address: token.address ?? token.contractAddress,
           valueUsd: token.valueUsd,
-          tokenDecimal: token.decimals
+          tokenDecimal: token.decimals ?? token.tokenDecimal,
         })),
         aiUsage: usageData || {
           totalCalls: 0,
@@ -211,11 +207,11 @@ export default function DashboardPage() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-white to-zinc-500 bg-clip-text text-transparent">
-            Avalanche Dashboard
+            Solana Dashboard
           </h1>
           <p className="text-zinc-400 mt-1 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            {isConnected ? 'Connected to Avalanche Fuji Testnet' : 'Disconnected'}
+            {isConnected ? "Connected to Solana" : "Disconnected"}
           </p>
         </div>
         <div className="flex items-center gap-3 bg-zinc-900/80 border border-zinc-800 rounded-full px-4 py-2 backdrop-blur-md">
@@ -228,19 +224,19 @@ export default function DashboardPage() {
 
       {/* --- Key Metrics Grid --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* AVAX Balance Card */}
+        {/* SOL Balance Card */}
         <GlowCard>
           <div className="flex justify-between items-start mb-4">
             <div className="p-2 bg-red-500/10 rounded-lg text-red-400">
               <Wallet className="w-5 h-5" />
             </div>
-            <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">AVAX Balance</span>
+            <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">SOL Balance</span>
           </div>
           <div className="text-3xl font-bold text-white mb-1">
-            {loading ? "..." : `${data?.balanceAvax || "0.00"} AVAX`}
+            {loading ? "..." : `${data?.balanceSol || "0.00"} SOL`}
           </div>
           <div className="text-sm text-zinc-400">
-            Testnet funds · no USD value
+            Memecoin &amp; DeFi on Solana
           </div>
         </GlowCard>
 
@@ -293,7 +289,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="space-y-3">
-            {/* AVAX Balance */}
+            {/* SOL Balance */}
             <GlowCard className="p-0 border-0 bg-transparent hover:bg-zinc-900/30">
               <div className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-4">
@@ -301,21 +297,21 @@ export default function DashboardPage() {
                     <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-red-500 to-orange-500" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-white">Avalanche</h3>
-                    <div className="text-xs text-zinc-400">AVAX</div>
+                    <h3 className="font-bold text-white">Solana</h3>
+                    <div className="text-xs text-zinc-400">SOL</div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-mono font-medium">{data?.balanceAvax || '0.00'} AVAX</div>
+                  <div className="font-mono font-medium">{data?.balanceSol || '0.00'} SOL</div>
                   <div className="text-xs text-zinc-500">
-                    Testnet funds · no USD value
+                    Native balance
                   </div>
                 </div>
               </div>
             </GlowCard>
 
             {/* Other Tokens */}
-            {data?.tokens?.map((token, i) => (
+            {data?.tokens?.filter((t) => t.symbol !== "SOL").map((token, i) => (
               <GlowCard key={i} className="p-0 border-0 bg-transparent hover:bg-zinc-900/30">
                 <div className="flex items-center justify-between p-4">
                   <div className="flex items-center gap-4">
@@ -394,16 +390,13 @@ export default function DashboardPage() {
                         <div className={`p-2 rounded-lg ${tx.isError === '1' ? 'bg-red-500/10 text-red-400' : 'bg-green-500/10 text-green-400'}`}>
                           {tx.isError === '1' ? (
                             <XCircle className="w-5 h-5" />
-                          ) : tx.to?.toLowerCase() === address?.toLowerCase() ? (
-                            <ArrowDownLeft className="w-5 h-5" />
                           ) : (
                             <ArrowUpRight className="w-5 h-5" />
                           )}
                         </div>
                         <div>
                           <div className="font-medium text-white">
-                            {tx.isError === '1' ? 'Transaction Failed' : 
-                             tx.to?.toLowerCase() === address?.toLowerCase() ? 'Received AVAX' : 'Sent AVAX'}
+                            {tx.isError === '1' ? 'Transaction Failed' : 'Solana transaction'}
                           </div>
                           <div className="text-xs text-zinc-400">
                             {tx.timeStamp ? formatTimeAgo(tx.timeStamp) : 'Unknown time'}
@@ -411,18 +404,16 @@ export default function DashboardPage() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className={`font-mono ${tx.to?.toLowerCase() === address?.toLowerCase() ? 'text-green-400' : 'text-white'}`}>
-                          {tx.isError !== '1' && (
-                            <>{tx.to?.toLowerCase() === address?.toLowerCase() ? '+' : '-'}{(parseInt(tx.value) / 1e18).toFixed(4)} AVAX</>
-                          )}
+                        <div className="font-mono text-xs text-zinc-500 truncate max-w-[140px]">
+                          {tx.hash?.slice(0, 8)}…
                         </div>
                         <a 
-                          href={`https://testnet.snowtrace.io/tx/${tx.hash}`}
+                          href={getTxExplorerUrl(tx.hash)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs text-blue-400 hover:underline"
                         >
-                          View on Explorer
+                          View on Solscan
                         </a>
                       </div>
                     </div>
@@ -497,40 +488,27 @@ export default function DashboardPage() {
             
             <div className="space-y-3">
               <button 
-                onClick={() => router.push('/swap')}
+                onClick={() => router.push('/home')}
                 className="w-full flex items-center justify-between p-3 bg-zinc-900/50 hover:bg-zinc-800/50 rounded-lg transition-colors border border-zinc-800"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
                     <ArrowUpDown className="w-4 h-4" />
                   </div>
-                  <span>Swap Tokens</span>
+                  <span>AI swap &amp; send</span>
                 </div>
                 <ArrowUpRight className="w-4 h-4 text-zinc-500" />
               </button>
               
               <button 
-                onClick={() => router.push('/bridge')}
+                onClick={() => router.push('/chat')}
                 className="w-full flex items-center justify-between p-3 bg-zinc-900/50 hover:bg-zinc-800/50 rounded-lg transition-colors border border-zinc-800"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-purple-500/10 rounded-lg text-purple-400">
                     <Layers className="w-4 h-4" />
                   </div>
-                  <span>Bridge Assets</span>
-                </div>
-                <ArrowUpRight className="w-4 h-4 text-zinc-500" />
-              </button>
-              
-              <button 
-                onClick={() => router.push('/stake')}
-                className="w-full flex items-center justify-between p-3 bg-zinc-900/50 hover:bg-zinc-800/50 rounded-lg transition-colors border border-zinc-800"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-green-500/10 rounded-lg text-green-400">
-                    <TrendingUp className="w-4 h-4" />
-                  </div>
-                  <span>Stake & Earn</span>
+                  <span>AI chat</span>
                 </div>
                 <ArrowUpRight className="w-4 h-4 text-zinc-500" />
               </button>
@@ -546,7 +524,7 @@ export default function DashboardPage() {
             
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-zinc-400">Avalanche Fuji</span>
+                <span className="text-zinc-400">Solana</span>
                 <span className="text-green-400 text-sm font-medium">Operational</span>
               </div>
               <div className="flex justify-between items-center">

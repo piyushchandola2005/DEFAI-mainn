@@ -17,7 +17,7 @@ import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import Image from "next/image";
 import { DashboardButton } from "../dashboard/DashboardButton";
 interface ChatTopbarProps {
@@ -38,8 +38,13 @@ export default function ChatTopbar({
 	const [sheetOpen, setSheetOpen] = React.useState(false);
 
 	const [isLoc, setIsLoc] = React.useState(false);
+	const [mounted, setMounted] = React.useState(false);
 	const setIsLocal = useChatStore((state) => state.setIsLocal);
 	const isLocal = useChatStore((state) => state.isLocal);
+
+	useEffect(() => {
+		setMounted(true);
+	}, []);
 
 	const handleCloseSidebar = () => {
 		setSheetOpen(false);
@@ -127,7 +132,13 @@ export default function ChatTopbar({
 				</div>
 
 				<DashboardButton />
-				<ConnectButton label="Connect wallet" chainStatus="none" accountStatus="avatar" showBalance={false} />
+				{mounted ? (
+					<WalletMultiButton className="!h-9 !text-sm" />
+				) : (
+					<Button className="!h-9 !text-sm" variant="secondary">
+						Connect Wallet
+					</Button>
+				)}
 			</div>
 
 		</div>

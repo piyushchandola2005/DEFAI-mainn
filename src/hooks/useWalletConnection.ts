@@ -1,25 +1,26 @@
 "use client";
 
-import { useEffect } from 'react';
-import { useAccount } from 'wagmi';
-import { registerOrUpdateUser } from '@/lib/user-management';
-import { useUserRegistration } from './useUserRegistration';
+import { useEffect } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { registerOrUpdateUser } from "@/lib/user-management";
+import { useUserRegistration } from "./useUserRegistration";
 
 export function useWalletConnection() {
-  const { address, isConnected } = useAccount();
-  const registration = useUserRegistration();
+	const { publicKey, connected } = useWallet();
+	const { handleRegistrationComplete, NameCollectionDialog } = useUserRegistration();
 
-  useEffect(() => {
-    if (address && isConnected) {
-      const registerUser = async () => {
-        const result = await registerOrUpdateUser(address);
-        if (result) {
-          registration.handleRegistrationComplete(result.user, result.isNewUser);
-        }
-      };
-      registerUser();
-    }
-  }, [address, isConnected, registration.handleRegistrationComplete]);
+	useEffect(() => {
+		const addr = publicKey?.toBase58();
+		if (addr && connected) {
+			const registerUser = async () => {
+				const result = await registerOrUpdateUser(addr);
+				if (result) {
+					handleRegistrationComplete(result.user, result.isNewUser);
+				}
+			};
+			registerUser();
+		}
+	}, [publicKey, connected, handleRegistrationComplete]);
 
-  return { NameCollectionDialog: registration.NameCollectionDialog };
+	return { NameCollectionDialog };
 }

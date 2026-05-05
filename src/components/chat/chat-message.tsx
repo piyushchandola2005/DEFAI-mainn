@@ -4,7 +4,7 @@ import { Message } from "ai/react";
 import { motion } from "framer-motion";
 import { RefreshCcw } from "lucide-react";
 import Image from "next/image";
-import { memo, useMemo, useRef, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import ButtonWithTooltip from "../button-with-tooltip";
@@ -16,31 +16,22 @@ import {
 	ChatBubbleMessage,
 } from "../ui/chat/chat-bubble";
 import { ConfirmationDialog } from "../ui/ConfirmationDialog";
-import { Address } from "viem";
-
-// shadcn Dialog imports
-import { useAccount, useBalance, useSendTransaction, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import ToolExecutor from "./ToolExecutor";
-import { createPublicClient, http, parseEther, parseUnits } from "viem";
-import { abiApprouve } from "@/constants/abi";
-import { getTokenAvax } from "@/constants/tokenInfo";
-import {
-	ChainId,
-	Token,
-	TokenAmount,
-	Percent,
-} from "@traderjoe-xyz/sdk-core";
-import {
-	PairV2,
-	RouteV2,
-	TradeV2,
-	TradeOptions,
-	LB_ROUTER_V22_ADDRESS,
-	jsonAbis,
-} from "@traderjoe-xyz/sdk-v2";
-
-import { avalancheFuji } from "viem/chains";
 import SendResultDialog from "./SendResultDialog";
+import {
+	useConnection,
+	useWallet,
+} from "@solana/wallet-adapter-react";
+import {
+	Connection,
+	LAMPORTS_PER_SOL,
+	PublicKey,
+} from "@solana/web3.js";
+import { getMint } from "@solana/spl-token";
+import { jupiterSwap } from "@/lib/jupiter-swap";
+import { transferSol, transferSplToken } from "@/lib/solana-transfer";
+import { getTxExplorerUrl, WSOL_MAINNET } from "@/lib/solana-config";
+import { resolveMintSymbolOrAddress } from "@/constants/solana-tokens";
 
 export type ChatMessageProps = {
 	message: Message;
@@ -64,11 +55,13 @@ const MOTION_CONFIG = {
 	},
 };
 
-// --------------- HELPER COMPONENTS ---------------
-
-// The final card once the send is complete
-//TODO A AMELIORER
-function SendCompleteCard({ result, action }: { result: string, action: string }) {
+function SendCompleteCard({
+	result,
+	action,
+}: {
+	result: string;
+	action: string;
+}) {
 	const [dialogOpen, setDialogOpen] = useState(false);
 
 	return (
@@ -76,13 +69,39 @@ function SendCompleteCard({ result, action }: { result: string, action: string }
 			<p className="font-semibold text-sm mb-2">{action} complete</p>
 			<p className="text-xs">Your {action} was processed successfully.</p>
 			<div className="mt-6">
-				<SendResultDialog open={dialogOpen} onOpenChange={setDialogOpen} result={result} />
+				<SendResultDialog
+					open={dialogOpen}
+					onOpenChange={setDialogOpen}
+					result={result}
+				/>
 			</div>
 		</div>
 	);
 }
 
-// --------------- MAIN COMPONENT ---------------
+async function humanInputToRawAmount(
+	connection: Connection,
+	inputMint: string,
+	amountHuman: number
+): Promise<string> {
+	const mintResolved = resolveMintSymbolOrAddress(inputMint);
+	if (mintResolved === WSOL_MAINNET) {
+		return String(Math.round(amountHuman * LAMPORTS_PER_SOL));
+	}
+	const mintPk = new PublicKey(mintResolved);
+	const info = await getMint(connection, mintPk);
+	const dec = info.decimals;
+	return String(BigInt(Math.round(amountHuman * Math.pow(10, dec))));
+}
+
+function formatRpcError(error: unknown): string {
+	const msg =
+		error instanceof Error ? error.message : "Unknown RPC error";
+	if (msg.includes("403") || msg.toLowerCase().includes("access forbidden")) {
+		return "RPC endpoint access forbidden (403). Update NEXT_PUBLIC_SOLANA_RPC_URL to a valid Solana RPC URL (with API key if required).";
+	}
+	return msg;
+}
 
 function ChatMessage({
 	message,
@@ -92,9 +111,10 @@ function ChatMessage({
 	addToolResult,
 }: ChatMessageProps) {
 	const [isCopied, setIsCopied] = useState<boolean>(false);
+	const { connection } = useConnection();
+	const wallet = useWallet();
+	const { publicKey } = wallet;
 
-
-	// Clean up the content, removing <think> tags
 	const { cleanContent } = useMemo(() => {
 		return {
 			cleanContent: message.content
@@ -111,7 +131,7 @@ function ChatMessage({
 		setTimeout(() => setIsCopied(false), 1500);
 	};
 
-	const renderContent = () => (
+	const renderContent = () =>
 		contentParts.map((part, index) =>
 			index % 2 === 0 ? (
 				<Markdown key={index} remarkPlugins={[remarkGfm]}>
@@ -122,31 +142,13 @@ function ChatMessage({
 					<CodeDisplayBlock code={part} />
 				</pre>
 			)
-		)
-	);
+		);
 
-	const { address } = useAccount();
-
-
-	const dataBalance = useBalance({
-		address,
-		chainId: 43113,
-	})
-
-	const { data: dataSend, sendTransactionAsync } = useSendTransaction();
-
-	const { data: dataSwap, writeContractAsync } = useWriteContract();
-
-	
 	const renderToolInvocations = () => {
-
 		if (!message.toolInvocations) return null;
-
-		console.log("===> message.toolInvocations", message.toolInvocations);
 
 		return message.toolInvocations.map((toolInvocation: ToolInvocation) => {
 			const { toolCallId, toolName } = toolInvocation;
-
 
 			const confirmResult = (result: string) => {
 				if (!addToolResult) return;
@@ -155,19 +157,22 @@ function ChatMessage({
 
 			if (toolName === "convert") {
 				if (!("result" in toolInvocation)) {
-					return (<div key={toolCallId}>Tool executing issue</div>)
+					return (
+						<div key={toolCallId}>Tool executing issue</div>
+					);
 				}
 
 				return (
 					<div key={toolCallId} className="mt-2">
-						<SendCompleteCard result={toolInvocation.result as string} action="Convertion" />
+						<SendCompleteCard
+							result={toolInvocation.result as string}
+							action="Convertion"
+						/>
 					</div>
 				);
 			}
 
-			// send tool
 			if (toolName === "send") {
-				// si le résultat n'existe pas encore, c'est que le tool est en cours d'exécution
 				if (!("result" in toolInvocation)) {
 					return (
 						<ToolExecutor
@@ -175,32 +180,59 @@ function ChatMessage({
 							toolCallId={toolCallId}
 							addToolResult={addToolResult}
 							executeTool={async () => {
-								const { to, amount } = toolInvocation.args;
+								const args = toolInvocation.args as {
+									to: string;
+									amount: number;
+									asset?: "SOL" | "SPL";
+									mint?: string;
+								};
+								const { to, amount, mint } = args;
+								const asset =
+									args.asset ??
+									(mint ? "SPL" : "SOL");
 								try {
-									// Appel asynchrone qui lance la popup Metamask
-									const hash = await sendTransactionAsync({
-										to,
-										value: parseEther(amount.toString()),
-									});
+									let sig: string;
+									if (asset === "SOL") {
+										sig = await transferSol({
+											connection,
+											wallet,
+											to,
+											amount,
+										});
+									} else {
+										if (!mint) throw new Error("SPL transfer requires mint");
+										sig = await transferSplToken({
+											connection,
+											wallet,
+											mint,
+											to,
+											amount,
+										});
+									}
 									return JSON.stringify({
 										message: "Transaction sent!",
-										amount: `${amount} AVAX`,
-										from: address,
+										amount: `${amount} ${asset === "SOL" ? "SOL" : "SPL"}`,
+										from: publicKey?.toBase58(),
 										to,
-										hash,
-										explorerLink: `https://testnet.snowtrace.io/tx/${hash}`
+										hash: sig,
+										explorerLink: getTxExplorerUrl(sig),
 									});
 								} catch (error) {
 									console.error("Transaction cancelled or error:", error);
-									// Retourne un message qui indique l'annulation ou l'erreur
-									return "Transaction cancelled.";
+									return JSON.stringify({
+										error: formatRpcError(error),
+										status: "cancelled",
+									});
 								}
 							}}
 						/>
 					);
 				}
-				if (toolInvocation.result === "Transaction cancelled.") {
-					// Afficher un message d'annulation plutôt que la SendCompleteCard
+				if (
+					toolInvocation.result === "Transaction cancelled." ||
+					(typeof toolInvocation.result === "string" &&
+						toolInvocation.result.includes("\"status\":\"cancelled\""))
+				) {
 					return (
 						<div key={toolCallId} className="mt-2">
 							<div className="border w-full border-border p-4 mb-8 rounded-md shadow-sm">
@@ -213,14 +245,15 @@ function ChatMessage({
 
 				return (
 					<div key={toolCallId} className="mt-2">
-						<SendCompleteCard result={toolInvocation.result as string} action="Send" />
+						<SendCompleteCard
+							result={toolInvocation.result as string}
+							action="Send"
+						/>
 					</div>
 				);
 			}
 
-
 			if (toolName === "swap") {
-				// If the swap tool hasn't finished executing yet…
 				if (!("result" in toolInvocation)) {
 					return (
 						<ToolExecutor
@@ -229,108 +262,50 @@ function ChatMessage({
 							addToolResult={addToolResult}
 							executeTool={async () => {
 								try {
-									// 1. Get the amount from the tool args.
-									const amount = toolInvocation.args.amount; // e.g. 100 (USDC)
-									const typedValue = amount.toString();
-
-									// 2. Set chain and token details.
-									const CHAIN_ID = 43113;
-									const router = LB_ROUTER_V22_ADDRESS[CHAIN_ID];
-									const inputToken = getTokenAvax("USDC", CHAIN_ID);
-									const outputToken = getTokenAvax("WAVAX", CHAIN_ID);
-									const typedValueParsed = parseUnits(typedValue, inputToken.decimals);
-									const amountIn = new TokenAmount(inputToken, typedValueParsed);
-									const BASES = [
-										getTokenAvax("WAVAX", CHAIN_ID),
-										getTokenAvax("USDC", CHAIN_ID),
-										getTokenAvax("USDT", CHAIN_ID),
-									];
-
-									// 3. Create token pairs and routes.
-									const allTokenPairs = PairV2.createAllTokenPairs(inputToken, outputToken, BASES);
-									const allPairs = PairV2.initPairs(allTokenPairs);
-									const allRoutes = RouteV2.createAllRoutes(allPairs, inputToken, outputToken);
-
-									if (!address) throw new Error("User address not found");
-
-									// 4. Create a public client (using viem) to wait for tx confirmation.
-									const publicClient = createPublicClient({
-										chain: avalancheFuji,
-										key: address,
-										transport: http(),
-									});
-
-									// 5. Approve USDC for the router.
-									const approvalTx = await writeContractAsync({
-										address: getTokenAvax("USDC", CHAIN_ID).address as Address,
-										abi: abiApprouve,
-										functionName: "approve",
-										args: [router, typedValueParsed],
-									});
-
-									// Wait for the approval to be confirmed.
-									await publicClient.waitForTransactionReceipt({ hash: approvalTx });
-
-									// 6. Get trade routes for the swap.
-									const trades = await TradeV2.getTradesExactIn(
-										allRoutes,
-										amountIn,
-										outputToken,
-										false,
-										true,
-										publicClient,
-										CHAIN_ID
-									);
-									const validTrades = trades.filter((trade): trade is TradeV2 => trade !== undefined);
-									const bestTrade = TradeV2.chooseBestTrade(validTrades, true); // isExactIn = true
-									if (!bestTrade) throw new Error("No valid trade found");
-
-									// // 7. Get fee details.
-									const { totalFeePct, feeAmountIn } = await bestTrade.getTradeFee();
-									const userSlippageTolerance = new Percent("200", "10000");
-									const swapOptions: TradeOptions = {
-										allowedSlippage: userSlippageTolerance,
-										ttl: 3600,
-										recipient: address,
-										feeOnTransfer: false,
+									const args = toolInvocation.args as {
+										inputMint: string;
+										outputMint: string;
+										amount: number;
+										slippageBps?: number;
 									};
-
-									// // 8. Prepare swap call parameters.
-									const { methodName, args, value } = bestTrade.swapCallParameters(swapOptions);
-
-									// 9. Execute the swap.
-									const { LBRouterV22ABI } = jsonAbis;
-									const swapTx = await writeContractAsync({
-										address: router,
-										abi: LBRouterV22ABI,
-										functionName: methodName,
-										args: args,
-										account: address,
+									const inputMint = resolveMintSymbolOrAddress(
+										args.inputMint
+									);
+									const outputMint = resolveMintSymbolOrAddress(
+										args.outputMint
+									);
+									const amountRaw = await humanInputToRawAmount(
+										connection,
+										inputMint,
+										args.amount
+									);
+									const { signature } = await jupiterSwap({
+										connection,
+										wallet,
+										inputMint,
+										outputMint,
+										amountRaw,
+										slippageBps: args.slippageBps ?? 100,
 									});
-									// // Wait for swap tx confirmation.
-									await publicClient.waitForTransactionReceipt({ hash: swapTx });
-
-									// 10. Return all relevant info.
-									// return `Swap executed successfully!`;
 									return JSON.stringify({
 										message: "Swap executed successfully!",
-										amount: `${amount} USDC`,
-										adress: address,
-										transactionHash: swapTx,
-										fee: `${feeAmountIn.toSignificant(6)} ${feeAmountIn.token.symbol}`,
-										totalFeePercentage: `${totalFeePct.toSignificant(6)}%`,
-										explorerLink: `https://testnet.snowtrace.io/tx/${swapTx}`
+										amountIn: `${args.amount} (input token units)`,
+										adress: publicKey?.toBase58(),
+										transactionHash: signature,
+										explorerLink: getTxExplorerUrl(signature),
 									});
 								} catch (error) {
 									console.error("Swap failed:", error);
-									return "Transaction cancelled.";
+									return JSON.stringify({
+										error: formatRpcError(error),
+										status: "cancelled",
+									});
 								}
 							}}
 						/>
 					);
 				}
 
-				// If the swap tool result is "Transaction cancelled."
 				if (toolInvocation.result === "Transaction cancelled.") {
 					return (
 						<div key={toolCallId} className="mt-2">
@@ -342,22 +317,27 @@ function ChatMessage({
 					);
 				}
 
-				// Otherwise, display the final card with result details.
 				return (
 					<div key={toolCallId} className="mt-2">
-						<SendCompleteCard result={toolInvocation.result as string} action="Swap" />
+						<SendCompleteCard
+							result={toolInvocation.result as string}
+							action="Swap"
+						/>
 					</div>
 				);
 			}
 
-
-
-			// askForConfirmation
 			if (toolName === "askForConfirmation") {
+				const { actionType, message, destination, amount, tokenName } =
+					toolInvocation.args as {
+						actionType: string;
+						message: string;
+						destination?: string;
+						amount?: number | string;
+						tokenName?: string;
+					};
 
-				const { actionType, message, destination, amount, tokenName } = toolInvocation.args;
-
-				const user_adress = address;
+				const user_adress = publicKey?.toBase58();
 
 				const parameters = {
 					destination,
@@ -365,7 +345,6 @@ function ChatMessage({
 					amount,
 					tokenName,
 				};
-
 
 				if ("result" in toolInvocation) {
 					return (
@@ -377,11 +356,11 @@ function ChatMessage({
 						</div>
 					);
 				}
-				// Render dialog if not yet confirmed
+
 				return (
 					<div key={toolCallId} className="mt-2">
 						<ConfirmationDialog
-							actionType={actionType}
+							actionType={actionType as "swap" | "bridge" | "send"}
 							message={message}
 							parameters={parameters}
 							onConfirm={() => confirmResult("Yes")}
@@ -393,8 +372,7 @@ function ChatMessage({
 				);
 			}
 
-
-			if (toolName === "getAvaxBalance") {
+			if (toolName === "getSolBalance") {
 				if (!("result" in toolInvocation)) {
 					return (
 						<ToolExecutor
@@ -402,28 +380,40 @@ function ChatMessage({
 							toolCallId={toolCallId}
 							addToolResult={addToolResult}
 							executeTool={async () => {
-								// Here you can perform your async operation.
-								// For example, using useBalance data (make sure it's defined and fetched):
-								return JSON.stringify({
-									"balance": dataBalance.data?.value?.toString() || "0",
-									"address": address,
-									"chainId": 43113,
-								});
+								try {
+									if (!publicKey) {
+										return JSON.stringify({ error: "Wallet not connected" });
+									}
+									const lamports = await connection.getBalance(publicKey);
+									const sol = lamports / LAMPORTS_PER_SOL;
+									return JSON.stringify({
+										balanceLamports: lamports,
+										balanceSol: sol,
+										address: publicKey.toBase58(),
+									});
+								} catch (error) {
+									return JSON.stringify({
+										error: formatRpcError(error),
+									});
+								}
 							}}
 						/>
 					);
 				}
 
 				return (
-					<SendCompleteCard key={toolCallId} result={toolInvocation.result as string} action="Get Balance" />
+					<SendCompleteCard
+						key={toolCallId}
+						result={toolInvocation.result as string}
+						action="Get Balance"
+					/>
 				);
 			}
 
-			// fallback if we have other tools
 			if (!("result" in toolInvocation)) {
 				return (
 					<div key={toolCallId} className="mt-2">
-						{`Appel du tool ${toolName}...`}
+						{`Calling ${toolName}...`}
 					</div>
 				);
 			}
@@ -432,7 +422,6 @@ function ChatMessage({
 		});
 	};
 
-	// Copy + Regenerate buttons
 	const renderActionButtons = () =>
 		message.role === "assistant" && (
 			<div className="pt-2 flex gap-1 items-center text-muted-foreground">
@@ -468,11 +457,14 @@ function ChatMessage({
 		);
 
 	return (
-		<motion.div {...MOTION_CONFIG} className="flex flex-col gap-2 whitespace-pre-wrap">
+		<motion.div
+			{...MOTION_CONFIG}
+			className="flex flex-col gap-2 whitespace-pre-wrap"
+		>
 			<ChatBubble variant={message.role === "user" ? "sent" : "received"}>
 				{message.role === "assistant" && (
 					<ChatBubbleAvatar
-						src={message.role === "assistant" ? "/logo-avax.png" : ""}
+						src="/yellow_logo.svg"
 						width={6}
 						height={6}
 						className="object-contain"

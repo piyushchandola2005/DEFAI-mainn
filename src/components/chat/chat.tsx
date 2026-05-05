@@ -12,7 +12,6 @@ import ChatList from "./chat-list";
 import ChatTopbar from "./chat-topbar";
 import { Card, CardContent } from "../ui/card";
 import CardList  from "./CardList";
-import { useAccount } from "wagmi";
 
 export interface ChatProps {
 	id: string;
@@ -52,13 +51,11 @@ export default function Chat({ initialMessages, id }: ChatProps) {
 			console.error(error.cause);
 		},
 		onToolCall: (tool) => {
-			if (tool.toolCall.toolName == "getAvaxBalance") {
-				toast("Checking your AVAX balance...");
-				// here get the balance from the wallet
+			if (tool.toolCall.toolName == "getSolBalance") {
+				toast("Checking your SOL balance...");
 			}
 		}
 	});
-	const { address } = useAccount();
 	const [loadingSubmit, setLoadingSubmit] = React.useState(false);
 	const saveMessages = useChatStore((state) => state.saveMessages);
 	const getMessagesById = useChatStore((state) => state.getMessagesById);
@@ -74,7 +71,7 @@ export default function Chat({ initialMessages, id }: ChatProps) {
 
 	const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
-		window.history.replaceState({}, "", `/c/${id}`);
+		window.history.replaceState({}, "", `/home/c/${id}`);
 
 		const userMessage: Message = {
 			id: generateId(),
