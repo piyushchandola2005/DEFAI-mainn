@@ -103,6 +103,36 @@ function formatRpcError(error: unknown): string {
 	return msg;
 }
 
+function parseToolResult(result: unknown): Record<string, unknown> | null {
+	if (typeof result !== "string") return null;
+	try {
+		const parsed = JSON.parse(result);
+		return typeof parsed === "object" && parsed !== null ? parsed : null;
+	} catch {
+		return null;
+	}
+}
+
+function hasToolError(result: unknown): { hasError: boolean; message?: string } {
+	if (result === "Transaction cancelled.") {
+		return { hasError: true, message: "The transaction was cancelled." };
+	}
+	const parsed = parseToolResult(result);
+	if (!parsed) return { hasError: false };
+	const status = parsed.status;
+	const error = parsed.error;
+	if (status === "cancelled" || typeof error === "string") {
+		return {
+			hasError: true,
+			message:
+				typeof error === "string" && error.length > 0
+					? error
+					: "The transaction was cancelled.",
+		};
+	}
+	return { hasError: false };
+}
+
 function ChatMessage({
 	message,
 	isLast,
@@ -228,16 +258,13 @@ function ChatMessage({
 						/>
 					);
 				}
-				if (
-					toolInvocation.result === "Transaction cancelled." ||
-					(typeof toolInvocation.result === "string" &&
-						toolInvocation.result.includes("\"status\":\"cancelled\""))
-				) {
+				const sendStatus = hasToolError(toolInvocation.result);
+				if (sendStatus.hasError) {
 					return (
 						<div key={toolCallId} className="mt-2">
 							<div className="border w-full border-border p-4 mb-8 rounded-md shadow-sm">
-								<p className="font-semibold text-sm mb-2">Transaction Cancelled</p>
-								<p className="text-xs">The transaction was cancelled.</p>
+								<p className="font-semibold text-sm mb-2">Send failed</p>
+								<p className="text-xs">{sendStatus.message}</p>
 							</div>
 						</div>
 					);
@@ -306,12 +333,13 @@ function ChatMessage({
 					);
 				}
 
-				if (toolInvocation.result === "Transaction cancelled.") {
+				const swapStatus = hasToolError(toolInvocation.result);
+				if (swapStatus.hasError) {
 					return (
 						<div key={toolCallId} className="mt-2">
 							<div className="border w-full border-border p-4 mb-8 rounded-md shadow-sm">
-								<p className="font-semibold text-sm mb-2">Transaction Cancelled</p>
-								<p className="text-xs">The transaction was cancelled.</p>
+								<p className="font-semibold text-sm mb-2">Swap failed</p>
+								<p className="text-xs">{swapStatus.message}</p>
 							</div>
 						</div>
 					);
@@ -398,6 +426,18 @@ function ChatMessage({
 								}
 							}}
 						/>
+					);
+				}
+
+				const balStatus = hasToolError(toolInvocation.result);
+				if (balStatus.hasError) {
+					return (
+						<div key={toolCallId} className="mt-2">
+							<div className="border w-full border-border p-4 mb-8 rounded-md shadow-sm">
+								<p className="font-semibold text-sm mb-2">Balance fetch failed</p>
+								<p className="text-xs">{balStatus.message}</p>
+							</div>
+						</div>
 					);
 				}
 
